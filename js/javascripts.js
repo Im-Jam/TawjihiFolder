@@ -1,26 +1,4 @@
 
-// js/scripts.js
-// Import Firebase SDKs
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-
-// Firebase Configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyCF1VuNvhbHF5L3qiSjER0s-gQWEiIAPq8",
-    authDomain: "tawjihifolder.firebaseapp.com",
-    projectId: "tawjihifolder",
-    storageBucket: "tawjihifolder.appspot.com",
-    messagingSenderId: "963092650429",
-    appId: "1:963092650429:web:ce896548cf328b66d2dad4",
-    measurementId: "G-487PZPDLJT"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
 // GitHub Repository Information
 const githubUsername = 'Im-Jam';
 const githubRepo = 'Bank';
@@ -30,44 +8,37 @@ const githubBranch = 'main'; // or the branch where your data is stored
 let subjects = [];
 let systemsData = {};
 let questionsData = {};
-let bookmarks = []; // Initialize as empty; will load based on auth state
-let userAnswers = {}; // Initialize as empty; will load based on auth state
+let bookmarks = []; // Will be loaded from Firestore
+let userAnswers = {}; // Will be loaded from Firestore
 
 // User's Selection
-let selectedSubjects = JSON.parse(localStorage.getItem('selectedSubjects')) || [];
-let selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
+let selectedSubjects = [];
+let selectedSystems = [];
 
-// DOM Elements
-const loginButton = document.getElementById('login-button');
-const userInfo = document.getElementById('user-info');
-const userName = document.getElementById('user-name');
-const signOutButton = document.getElementById('sign-out-button');
+// Firebase Initialization (Already done in HTML)
 
-// Initialize Application
+// Initialize Application (Modify to load data from Firestore)
 document.addEventListener('DOMContentLoaded', function() {
-    loadSubjectsFromGitHub();
-    initializeDarkMode();
+    auth.onAuthStateChanged(user => { // Add this block
 
-    // Restore last page
-    const lastPage = localStorage.getItem('currentPage') || 'home-page';
-    const lastQuestion = JSON.parse(localStorage.getItem('lastQuestion'));
-    selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
+        if (user) {
 
-    if (lastPage === 'questions-list-page' || lastPage === 'question-page') {
-        if (selectedSystems && selectedSystems.length > 0) {
-            loadQuestionsList(selectedSystems).then(() => {
-                if (lastPage === 'question-page' && lastQuestion) {
-                    loadQuestion(lastQuestion.questionId, lastQuestion.subject, lastQuestion.system);
-                } else {
-                    showPage('questions-list-page', false);
-                }
+            loadUserData(user.uid).then(() => { // Load data after login
+                loadSubjectsFromGitHub();
+                initializeDarkMode();
+                restoreLastPage();
+
             });
+
         } else {
-            showPage('home-page', false);
+            // User is signed out - Proceed as usual (no saved data)
+            loadSubjectsFromGitHub();
+            initializeDarkMode();
+            restoreLastPage();
+
+
         }
-    } else {
-        showPage(lastPage, false);
-    }
+    });
 });
 
 // Initialize Dark Mode
@@ -104,6 +75,7 @@ function loadSubjectsFromGitHub() {
         })
         .catch(error => {
             console.error('Error fetching subjects:', error);
+            showToast('حدث خطأ أثناء جلب المواد.');
         });
 }
 
@@ -191,6 +163,7 @@ function fetchSystemsFromGitHub(selectedSubjects) {
         .catch(error => {
             console.error('Error fetching systems:', error);
             systemsContainer.innerHTML = '<p class="text-danger">Error loading systems. Please try again later.</p>';
+            showToast('حدث خطأ أثناء جلب الوحدات.');
         });
 }
 
@@ -305,6 +278,7 @@ function loadQuestionsList(selectedSystems) {
         .catch(error => {
             console.error('Error fetching questions:', error);
             questionsList.innerHTML = '<p class="text-danger">Error loading questions. Please try again later.</p>';
+            showToast('حدث خطأ أثناء جلب الأسئلة.');
         });
 }
 
@@ -390,7 +364,7 @@ function loadQuestion(questionId, subject, system) {
     for (const [letter, choiceText] of Object.entries(questionData.choices)) {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'btn btn-outline-primary choice-btn text-start mb-2';
+        btn.className = 'btn btn-outline-primary choice-btn text-start';
         btn.dataset.choice = letter;
         btn.innerHTML = `<strong>${letter}.</strong> ${choiceText}`;
         btn.addEventListener('click', function() {
@@ -400,7 +374,7 @@ function loadQuestion(questionId, subject, system) {
     }
     // Update Bookmark Button
     const bookmarkButton = document.getElementById('bookmarkQuestion');
-    const isBookmarked = bookmarks.some(b => b.questionId == questionId);
+    const isBookmarked = bookmarks.some(b => b.questionId == questionId && b.subject === subject && b.system === system);
     if (isBookmarked) {
         bookmarkButton.textContent = 'الغاء حفظ السؤال';
     } else {
@@ -491,41 +465,29 @@ function updateChoiceButtons() {
 }
 
 // Save Answer
-async function saveAnswer(questionId, questionData) {
+function saveAnswer(questionId, questionData) {
     if (!selectedChoice) {
         showToast('حدد اجابة واحدة قبل الحفظ');
         return;
     }
     const isCorrect = selectedChoice === questionData.correct_choice;
-    userAnswers[questionId] = {userAnswer: selectedChoice, isCorrect};
-    
-    if (auth.currentUser) {
-        // Save to Firestore
-        try {
-            const userDocRef = doc(db, "users", auth.currentUser.uid);
-            const answersColRef = collection(userDocRef, "answers");
-            const answerDocRef = doc(answersColRef, String(questionId));
-            await setDoc(answerDocRef, {
-                userAnswer: selectedChoice,
-                isCorrect: isCorrect,
-                timestamp: new Date()
-            });
-            showToast('تم حفظ الاجابة بنجاح');
-        } catch (error) {
-            console.error('Error saving answer to Firestore:', error);
-            showToast('فشل حفظ الاجابة.', true);
-        }
-    } else {
-        // Save to localStorage
-        localStorage.setItem('userAnswers', JSON.stringify(userAnswers));
-        showToast('تم حفظ الاجابة بنجاح');
+    userAnswers[questionId] = { userAnswer: selectedChoice, isCorrect };
+    // Save to Firestore
+    if (auth.currentUser) {  // Check if user is logged in
+        firestore.collection('users').doc(auth.currentUser.uid).update({
+            answers: userAnswers
+        }).catch(error => {
+            console.error("Error saving answer:", error);
+            showToast("حدث خطأ أثناء حفظ الإجابة.");
+        });
     }
+    showToast("تم حفظ الاجابة بنجاح.");
 }
 
 // Reveal Answer
 function revealAnswer(questionData) {
     if (!selectedChoice) {
-        showToast('قم بختيار اجابة اولا قبل محاولة عرض الاجابة النموذجية');
+        showToast('قم بختيار اجابة اولا قبل محاولة عرض الاجالة النموذجية');
         return;
     }
     const answerExplanation = document.getElementById('answerExplanation');
@@ -539,139 +501,83 @@ function revealAnswer(questionData) {
 }
 
 // Toggle Bookmark
-async function toggleBookmark(questionId, subject, system) {
+function toggleBookmark(questionId, subject, system) {
     const bookmarkButton = document.getElementById('bookmarkQuestion');
-    const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId);
+    const bookmark = { questionId, subject, system };
+    const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId && b.subject === subject && b.system === system);
+
     if (bookmarkIndex !== -1) {
-        // Remove Bookmark
+        // Remove bookmark
         bookmarks.splice(bookmarkIndex, 1);
-        if (auth.currentUser) {
-            try {
-                const userDocRef = doc(db, "users", auth.currentUser.uid);
-                const bookmarksColRef = collection(userDocRef, "bookmarks");
-                const bookmarkDocRef = doc(bookmarksColRef, String(questionId));
-                await deleteDoc(bookmarkDocRef);
-                showToast('تم الغاء حفظ السؤال');
-            } catch (error) {
-                console.error('Error removing bookmark from Firestore:', error);
-                showToast('فشل الغاء حفظ السؤال.', true);
-            }
-        } else {
-            // Update localStorage
-            localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
-            showToast('تم الغاء حفظ السؤال');
-        }
         bookmarkButton.textContent = 'احفظ السؤال';
+        showToast('تم الغاء حفظ السؤال');
     } else {
-        // Add Bookmark
-        bookmarks.push({questionId, subject, system});
-        if (auth.currentUser) {
-            try {
-                const userDocRef = doc(db, "users", auth.currentUser.uid);
-                const bookmarksColRef = collection(userDocRef, "bookmarks");
-                const bookmarkDocRef = doc(bookmarksColRef, String(questionId));
-                await setDoc(bookmarkDocRef, {
-                    subject: subject,
-                    system: system,
-                    timestamp: new Date()
-                });
-                showToast('تم حفظ السؤال');
-            } catch (error) {
-                console.error('Error adding bookmark to Firestore:', error);
-                showToast('فشل حفظ السؤال.', true);
-            }
-        } else {
-            // Update localStorage
-            localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
-            showToast('تم حفظ السؤال');
-        }
+        // Add bookmark
+        bookmarks.push(bookmark);
+
         bookmarkButton.textContent = 'الغاء حفظ السؤال';
+        showToast('تم حفظ السؤال');
     }
+
+    // Save bookmarks to Firestore
+     if (auth.currentUser) {
+        firestore.collection('users').doc(auth.currentUser.uid).update({
+            bookmarks: bookmarks
+        }).catch(error => {
+             console.error("Error saving bookmark:", error);
+             showToast("حدث خطأ أثناء حفظ الإشارة المرجعية.");
+
+
+         });
+
+     }
+
 }
 
 // Load Bookmarks
-async function loadBookmarks() {
+function loadBookmarks() {
     const container = document.getElementById('bookmarks-container');
     container.innerHTML = '';
-    if (auth.currentUser) {
-        // Load from Firestore
-        try {
-            const userDocRef = doc(db, "users", auth.currentUser.uid);
-            const bookmarksColRef = collection(userDocRef, "bookmarks");
-            const bookmarksSnapshot = await getDocs(bookmarksColRef);
-            bookmarks = [];
-            bookmarksSnapshot.forEach(doc => {
-                bookmarks.push({questionId: parseInt(doc.id), subject: doc.data().subject, system: doc.data().system});
-            });
-        } catch (error) {
-            console.error('Error loading bookmarks from Firestore:', error);
-            showToast('فشل تحميل المفضلات.', true);
-        }
-    } else {
-        // Load from localStorage
-        bookmarks = JSON.parse(localStorage.getItem('bookmarks')) || [];
-    }
 
-    container.innerHTML = '';
     if (bookmarks.length === 0) {
         container.innerHTML = '<p>ليس لديك اي اسئلة محفوظة</p>';
         return;
     }
 
-    let fetchPromises = [];
-
-    bookmarks.forEach(bookmark => {
-        const {questionId, subject, system} = bookmark;
-
-        const question = getQuestionFromData(questionId, subject, system);
-
-        if (!question) {
-            const questionUrl = `https://raw.githubusercontent.com/${githubUsername}/${githubRepo}/${githubBranch}/Data/${encodeURIComponent(subject)}/${encodeURIComponent(system)}/${encodeURIComponent(questionId)}/question.json`;
-
-            fetchPromises.push(
-                fetch(questionUrl)
-                .then(response => response.json())
-                .then(questionData => {
-                    // Store the question in questionsData
-                    if (!questionsData[subject]) questionsData[subject] = {};
-                    if (!questionsData[subject][system]) questionsData[subject][system] = [];
-                    questionsData[subject][system].push({...questionData, subject_name: subject, system_name: system});
-                })
-                .catch(error => {
-                    console.error('حدث خطأ اثناء استلام الاسئلة المحفوظة', error);
-                })
-            );
-        }
+    const fetchPromises = bookmarks.map(bookmark => {
+        const { questionId, subject, system } = bookmark;
+        return getQuestionFromData(questionId, subject, system) || fetchQuestionFromGitHub(questionId, subject, system);
     });
 
-    await Promise.all(fetchPromises);
 
-    let html = '<ul class="list-group">';
-    bookmarks.forEach(bookmark => {
-        const {questionId, subject, system} = bookmark;
-        const question = getQuestionFromData(questionId, subject, system);
-        if (question) {
-            html += `
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <a href="#" onclick="loadQuestion(${questionId}, '${subject}', '${system}')">سؤال رقم ${questionId} (${subject} - ${system})</a>
-                    <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId})">
-                        ازالة
-                    </button>
-                </li>
-            `;
-        } else {
-            html += `
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span>سؤال رقم ${questionId} (${subject} - ${system}) - Failed to load</span>
-                    <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId})">
-                        ازالة
-                    </button>
-                </li>
-            `;
-        }
+    Promise.all(fetchPromises).then(() => {
+        let html = '<ul class="list-group">';
+        bookmarks.forEach(bookmark => {
+            const { questionId, subject, system } = bookmark;
+            const question = getQuestionFromData(questionId, subject, system);
+            if (question) {
+                html += `
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="#" onclick="loadQuestion(${questionId}, '${subject}', '${system}')">سؤال رقم ${questionId} (${subject} - ${system})</a>
+                        <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId}, '${subject}', '${system}')">
+                            ازالة
+                        </button>
+                    </li>
+                `;
+            } else {
+                html += `
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>سؤال رقم ${questionId} (${subject} - ${system}) - Failed to load</span>
+                        <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId}, '${subject}', '${system}')">
+                            ازالة
+                        </button>
+                    </li>
+                `;
+            }
+        });
+        html += '</ul>';
+        container.innerHTML = html;
     });
-    html += '</ul>';
-    container.innerHTML = html;
 }
 
 // Get Question from Data
@@ -682,44 +588,51 @@ function getQuestionFromData(questionId, subject, system) {
     return null;
 }
 
+
+function fetchQuestionFromGitHub(questionId, subject, system) {
+
+    const questionUrl = `https://raw.githubusercontent.com/${githubUsername}/${githubRepo}/${githubBranch}/Data/${encodeURIComponent(subject)}/${encodeURIComponent(system)}/${encodeURIComponent(questionId)}/question.json`;
+
+    return fetch(questionUrl)
+    .then(response => response.json())
+    .then(questionData => {
+                // Store the question in questionsData
+                if (!questionsData[subject]) questionsData[subject] = {};
+                if (!questionsData[subject][system]) questionsData[subject][system] = [];
+                questionsData[subject][system].push({...questionData, subject_name: subject, system_name: system});
+                return questionData;
+            })
+    .catch(error => {
+        console.error('حدث خطأ اثناء استلام الاسئلة المحفوظة', error);
+        return null;
+    })
+
+
+}
+
 // Remove Bookmark
-async function removeBookmark(questionId) {
-    const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId);
+function removeBookmark(questionId, subject, system) {
+    const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId && b.subject === subject && b.system === system);
     if (bookmarkIndex !== -1) {
-        const {subject, system} = bookmarks[bookmarkIndex];
         bookmarks.splice(bookmarkIndex,1);
         if (auth.currentUser) {
-            try {
-                const userDocRef = doc(db, "users", auth.currentUser.uid);
-                const bookmarksColRef = collection(userDocRef, "bookmarks");
-                const bookmarkDocRef = doc(bookmarksColRef, String(questionId));
-                await deleteDoc(bookmarkDocRef);
-                showToast('تم ازالة السؤال من قائمة الاسئلة المحفوظة');
-            } catch (error) {
-                console.error('Error removing bookmark from Firestore:', error);
-                showToast('فشل ازالة المفضلة.', true);
-            }
-        } else {
-            localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
-            showToast('تم ازالة السؤال من قائمة الاسئلة المحفوظة');
+            firestore.collection('users').doc(auth.currentUser.uid).update({
+                bookmarks: bookmarks
+            }).catch(error => {
+                console.error("Error removing bookmark:", error);
+                showToast("حدث خطأ أثناء إزالة الإشارة المرجعية.");
+            });
         }
         loadBookmarks();
+        showToast('تم ازالة السؤال من قائمة الاسئلة المحفوظة');
     }
 }
 
 // Show Toast
-function showToast(message, isError = false) {
-    const toastLiveExample = document.getElementById('liveToast');
-    const toastBody = toastLiveExample.querySelector('.toast-body');
+function showToast(message) {
+    const toastBody = document.querySelector('#liveToast .toast-body');
     toastBody.textContent = message;
-    if (isError) {
-        toastLiveExample.classList.remove('bg-primary', 'bg-success', 'bg-warning');
-        toastLiveExample.classList.add('bg-danger');
-    } else {
-        toastLiveExample.classList.remove('bg-danger', 'bg-success', 'bg-warning');
-        toastLiveExample.classList.add('bg-primary');
-    }
-    const toast = new bootstrap.Toast(toastLiveExample);
+    const toast = new bootstrap.Toast(document.getElementById('liveToast'));
     toast.show();
 }
 
@@ -806,95 +719,80 @@ function filterQuestions(allQuestions) {
     });
 }
 
-// Firebase Authentication Setup
-
-// Google Auth Provider
-const provider = new GoogleAuthProvider();
-
-// Sign-In with Google
-loginButton.addEventListener('click', () => {
-    signInWithPopup(auth, provider)
-        .then((result) => {
-            // Successful sign-in
-            showToast(`مرحبا، ${result.user.displayName}!`);
-        })
-        .catch((error) => {
-            console.error('Error during sign-in:', error);
-            showToast('فشل تسجيل الدخول. حاول مرة أخرى.', true);
-        });
-});
-
-// Sign-Out
-signOutButton.addEventListener('click', () => {
-    signOut(auth)
-        .then(() => {
-            showToast('تم تسجيل الخروج بنجاح.');
-        })
-        .catch((error) => {
-            console.error('Error during sign-out:', error);
-            showToast('فشل تسجيل الخروج. حاول مرة أخرى.', true);
-        });
-});
-
-// Authentication State Listener
-onAuthStateChanged(auth, user => {
-    if (user) {
-        // User is signed in
-        userName.textContent = user.displayName;
-        userInfo.style.display = 'flex';
-        loginButton.style.display = 'none';
-        // Load user-specific data from Firestore
-        loadUserData(user.uid);
-    } else {
-        // User is signed out
-        userInfo.style.display = 'none';
-        loginButton.style.display = 'block';
-        // Load data from localStorage
-        bookmarks = JSON.parse(localStorage.getItem('bookmarks')) || [];
-        userAnswers = JSON.parse(localStorage.getItem('userAnswers')) || {};
-    }
-});
-
-// Function to Load User Data from Firestore
-async function loadUserData(uid) {
-    // Load Bookmarks
+async function loadUserData(userId) {
     try {
-        const userDocRef = doc(db, "users", uid);
-        const bookmarksColRef = collection(userDocRef, "bookmarks");
-        const bookmarksSnapshot = await getDocs(bookmarksColRef);
-        bookmarks = [];
-        bookmarksSnapshot.forEach(doc => {
-            bookmarks.push({questionId: parseInt(doc.id), subject: doc.data().subject, system: doc.data().system});
-        });
-    } catch (error) {
-        console.error('Error loading bookmarks from Firestore:', error);
-        showToast('فشل تحميل المفضلات.', true);
-    }
+        const userDoc = await firestore.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+            const userData = userDoc.data();
+            bookmarks = userData.bookmarks || [];
+            userAnswers = userData.answers || {};
+        } else {
+            // Create a new document for the user if it doesn't exist
+            await firestore.collection('users').doc(userId).set({
+                bookmarks: [],
+                answers: {}
+            })
+        }
 
-    // Load User Answers
-    try {
-        const userDocRef = doc(db, "users", uid);
-        const answersColRef = collection(userDocRef, "answers");
-        const answersSnapshot = await getDocs(answersColRef);
-        userAnswers = {};
-        answersSnapshot.forEach(doc => {
-            userAnswers[parseInt(doc.id)] = {
-                userAnswer: doc.data().userAnswer,
-                isCorrect: doc.data().isCorrect
-            };
-        });
     } catch (error) {
-        console.error('Error loading answers from Firestore:', error);
-        showToast('فشل تحميل الاجابات.', true);
+        console.error("Error loading user data:", error);
+        showToast('حدث خطأ اثناء تحميل بيانات المستخدم');
+
     }
 }
 
-// Modify Load Bookmarks Function to Support Firestore
-// (Already handled in the loadBookmarks function above)
+function restoreLastPage() {
+    const lastPage = localStorage.getItem('currentPage') || 'home-page';
+    const lastQuestion = JSON.parse(localStorage.getItem('lastQuestion'));
+    selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
 
-// Modify Toggle Bookmark Function to Support Firestore
-// (Already handled in the toggleBookmark function above)
+    if (lastPage === 'questions-list-page' || lastPage === 'question-page') {
+        if (selectedSystems && selectedSystems.length > 0) {
+            loadQuestionsList(selectedSystems).then(() => {
+                if (lastPage === 'question-page' && lastQuestion) {
+                    loadQuestion(lastQuestion.questionId, lastQuestion.subject, lastQuestion.system);
+                } else {
+                    showPage('questions-list-page', false);
+                }
+            });
+        } else {
+            showPage('home-page', false);
+        }
+    } else {
+        showPage(lastPage, false);
+    }
+}
 
-// Modify Save Answer Function to Support Firestore
-// (Already handled in the saveAnswer function above)
 
+//Sign-in/Sign-out Logic
+const loginButton = document.getElementById('login-button');
+const userInfo = document.getElementById('user-info');
+
+auth.onAuthStateChanged(user => {
+    if (user) {
+        // User is signed in
+        userInfo.innerHTML = `<span>${user.displayName}</span><button class="btn btn-outline-danger ms-2" id="sign-out-button">تسجيل الخروج</button>`;
+        document.getElementById('sign-out-button').addEventListener('click', () => {
+            auth.signOut().then(() => {
+                showToast('تم تسجيل الخروج بنجاح');
+                location.reload(); //refresh the page after logout
+            }).catch(error => {
+                console.error("Sign-out error:", error);
+                showToast('حدث خطأ أثناء تسجيل الخروج.');
+            });
+        });
+    } else {
+        // User is signed out
+        userInfo.innerHTML = ''; // Clear user info
+        loginButton.style.display = 'block'; // Show login button
+    }
+});
+
+loginButton.addEventListener('click', () => {
+    auth.signInWithPopup(provider).then(result => {
+        showToast('تم تسجيل الدخول بنجاح');
+    }).catch(error => {
+        console.error("Sign-in error:", error);
+        showToast('حدث خطأ أثناء تسجيل الدخول');
+    });
+});
