@@ -1,99 +1,56 @@
-
 // GitHub Repository Information
 const githubUsername = 'Im-Jam';
 const githubRepo = 'Bank';
-const githubBranch = 'main';
+const githubBranch = 'main'; // or the branch where your data is stored
 
 // Global Variables
 let subjects = [];
 let systemsData = {};
 let questionsData = {};
-let bookmarks = [];
-let userAnswers = {};
+let bookmarks = JSON.parse(localStorage.getItem('bookmarks')) || [];
+let userAnswers = JSON.parse(localStorage.getItem('userAnswers')) || {};
 
 // User's Selection
 let selectedSubjects = JSON.parse(localStorage.getItem('selectedSubjects')) || [];
 let selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
 
-// Import Firebase services FIRST
-import { initializeApp } from "firebase/app"; // Updated path
-import { getAuth, GoogleAuthProvider } from "firebase/auth"; // Updated path
-import { getFirestore } from "firebase/firestore"; // Updated path
-import { getStorage } from "firebase/storage"; // Updated path
-
-
-
-// Initialize Firebase (Replace with your actual config)
-const firebaseConfig = {
-    apiKey: "AIzaSyCF1VuNvhbHF5L3qiSjER0s-gQWEiIAPq8",
-    authDomain: "tawjihifolder.firebaseapp.com",
-    projectId: "tawjihifolder",
-    storageBucket: "tawjihifolder.appspot.com",
-    messagingSenderId: "963092650429",
-    appId: "1:963092650429:web:ce896548cf328b66d2dad4",
-    measurementId: "G-487PZPDLJT"
-  };
-// Initialize Firebase ONCE
-const app = initializeApp(firebaseConfig);  // Get the app instance
-const auth = getAuth(app); // Pass the app instance
-const provider = new GoogleAuthProvider();
-const db = getFirestore(app); // Pass the app instance
-const storage = getStorage(app); // Pass the app instance
-
 // Initialize Application
 document.addEventListener('DOMContentLoaded', function() {
-    auth.onAuthStateChanged(user => {
-        if (user) {
-            loadUserData(user.uid).then(() => {
-                loadSubjectsFromGitHub();
-                initializeDarkMode();
-                restoreLastPage();
-                // Display user info and sign-out button
-                const userInfo = document.getElementById('user-info');
-                const loginButton = document.getElementById('login-button');
-                userInfo.innerHTML = `<span>${user.displayName}</span><button class="btn btn-outline-danger ms-2" id="sign-out-button">تسجيل الخروج</button>`;
-                document.getElementById('sign-out-button').addEventListener('click', () => {
-                    auth.signOut().then(() => {
-                        showToast('تم تسجيل الخروج بنجاح');
-                        userInfo.innerHTML = '';
-                        loginButton.style.display = 'block';
-                        localStorage.removeItem('selectedSubjects');
-                        localStorage.removeItem('selectedSystems');
-                    }).catch(error => {
-                        console.error("Sign-out error:", error);
-                        showToast('حدث خطأ أثناء تسجيل الخروج.');
-                    });
-                });
-                loginButton.style.display = 'none';
+    loadSubjectsFromGitHub();
+    initializeDarkMode();
+
+    // Restore last page
+    const lastPage = localStorage.getItem('currentPage') || 'home-page';
+    const lastQuestion = JSON.parse(localStorage.getItem('lastQuestion'));
+    selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
+
+    if (lastPage === 'questions-list-page' || lastPage === 'question-page') {
+        if (selectedSystems && selectedSystems.length > 0) {
+            loadQuestionsList(selectedSystems).then(() => {
+                if (lastPage === 'question-page' && lastQuestion) {
+                    loadQuestion(lastQuestion.questionId, lastQuestion.subject, lastQuestion.system);
+                } else {
+                    showPage('questions-list-page', false);
+                }
             });
         } else {
-            loadSubjectsFromGitHub();
-            initializeDarkMode();
-            restoreLastPage();
-            const loginButton = document.getElementById('login-button');
-            const userInfo = document.getElementById('user-info');
-            userInfo.innerHTML = '';
-            loginButton.addEventListener('click', () => {
-                auth.signInWithPopup(provider).then(result => {
-                    const user = result.user;
-                    loadUserData(user.uid);
-                }).catch(error => {
-                    console.error("Sign-in error:", error);
-                    showToast('حدث خطأ أثناء تسجيل الدخول');
-                });
-            });
+            showPage('home-page', false);
         }
-    });
+    } else {
+        showPage(lastPage, false);
+    }
 });
 
 // Initialize Dark Mode
 function initializeDarkMode() {
     const darkModeToggle = document.getElementById('darkModeToggle');
     const body = document.body;
+
     if (localStorage.getItem('darkMode') === 'enabled') {
         body.classList.add('dark-mode');
         darkModeToggle.innerHTML = '<i class="bi bi-sun-fill"></i> الوضع الفاتح';
     }
+
     darkModeToggle.addEventListener('click', function(e) {
         e.preventDefault();
         body.classList.toggle('dark-mode');
@@ -178,7 +135,7 @@ function getSelectedSubjects() {
 function fetchSystemsFromGitHub(selectedSubjects) {
     const systemsContainer = document.getElementById('systems-container');
     const proceedButton = document.getElementById('proceed-button');
-    systemsData = {};
+    systemsData = {}; // Reset systems data
     if (selectedSubjects.length === 0) {
         systemsContainer.innerHTML = '<p>Select one or more subjects to view available systems.</p>';
         proceedButton.disabled = true;
@@ -281,7 +238,7 @@ document.getElementById('proceed-button').addEventListener('click', function() {
 
 // Load Questions List
 function loadQuestionsList(selectedSystems) {
-    questionsData = {};
+    questionsData = {}; // Reset questions data
     const questionsList = document.getElementById('questions-list');
     questionsList.innerHTML = '';
     let fetchPromises = [];
@@ -511,17 +468,9 @@ function saveAnswer(questionId, questionData) {
         return;
     }
     const isCorrect = selectedChoice === questionData.correct_choice;
-    userAnswers[questionId] = { userAnswer: selectedChoice, isCorrect };
-    // Save to Firestore
-    if (auth.currentUser) {
-        db.collection('users').doc(auth.currentUser.uid).update({
-            answers: userAnswers
-        }).catch(error => {
-            console.error("Error saving answer:", error);
-            showToast("حدث خطأ أثناء حفظ الإجابة.");
-        });
-    }
-    showToast("تم حفظ الاجابة بنجاح.");
+    userAnswers[questionId] = {userAnswer: selectedChoice, isCorrect};
+    localStorage.setItem('userAnswers', JSON.stringify(userAnswers));
+    showToast('تم حفظ الاجابة بنجاح');
 }
 
 // Reveal Answer
@@ -543,76 +492,83 @@ function revealAnswer(questionData) {
 // Toggle Bookmark
 function toggleBookmark(questionId, subject, system) {
     const bookmarkButton = document.getElementById('bookmarkQuestion');
-    const bookmark = { questionId, subject, system };
-    const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId && b.subject === subject && b.system === system);
-
+    const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId);
     if (bookmarkIndex !== -1) {
-        // Remove bookmark
         bookmarks.splice(bookmarkIndex, 1);
         bookmarkButton.textContent = 'احفظ السؤال';
         showToast('تم الغاء حفظ السؤال');
     } else {
-        // Add bookmark
-        bookmarks.push(bookmark);
+        bookmarks.push({questionId, subject, system});
         bookmarkButton.textContent = 'الغاء حفظ السؤال';
         showToast('تم حفظ السؤال');
     }
-
-    // Save bookmarks to Firestore
-    if (auth.currentUser) {
-        db.collection('users').doc(auth.currentUser.uid).update({
-            bookmarks: bookmarks
-        }).catch(error => {
-            console.error("Error saving bookmark:", error);
-            showToast("حدث خطأ أثناء حفظ الإشارة المرجعية.");
-        });
-    }
+    localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
 }
 
 // Load Bookmarks
 function loadBookmarks() {
     const container = document.getElementById('bookmarks-container');
     container.innerHTML = '';
-
     if (bookmarks.length === 0) {
         container.innerHTML = '<p>ليس لديك اي اسئلة محفوظة</p>';
         return;
     }
 
-    const fetchPromises = bookmarks.map(bookmark => {
-        const { questionId, subject, system } = bookmark;
-        return getQuestionFromData(questionId, subject, system) || fetchQuestionFromGitHub(questionId, subject, system);
+    let fetchPromises = [];
+
+    bookmarks.forEach(bookmark => {
+        const {questionId, subject, system} = bookmark;
+
+        const question = getQuestionFromData(questionId, subject, system);
+
+        if (!question) {
+            const questionUrl = `https://raw.githubusercontent.com/${githubUsername}/${githubRepo}/${githubBranch}/Data/${encodeURIComponent(subject)}/${encodeURIComponent(system)}/${encodeURIComponent(questionId)}/question.json`;
+
+            fetchPromises.push(
+                fetch(questionUrl)
+                .then(response => response.json())
+                .then(questionData => {
+                    // Store the question in questionsData
+                    if (!questionsData[subject]) questionsData[subject] = {};
+                    if (!questionsData[subject][system]) questionsData[subject][system] = [];
+                    questionsData[subject][system].push({...questionData, subject_name: subject, system_name: system});
+                })
+                .catch(error => {
+                    console.error('حدث خطأ اثناء استلام الاسئلة المحفوظة', error);
+                })
+            );
+        }
     });
 
-
-    Promise.all(fetchPromises).then(() => {
-        let html = '<ul class="list-group">';
-        bookmarks.forEach(bookmark => {
-            const { questionId, subject, system } = bookmark;
-            const question = getQuestionFromData(questionId, subject, system);
-            if (question) {
-                html += `
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <a href="#" onclick="loadQuestion(${questionId}, '${subject}', '${system}')">سؤال رقم ${questionId} (${subject} - ${system})</a>
-                        <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId}, '${subject}', '${system}')">
-                            ازالة
-                        </button>
-                    </li>
-                `;
-            } else {
-                html += `
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span>سؤال رقم ${questionId} (${subject} - ${system}) - Failed to load</span>
-                        <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId}, '${subject}', '${system}')">
-                            ازالة
-                        </button>
-                    </li>
-                `;
-            }
+    Promise.all(fetchPromises)
+        .then(() => {
+            let html = '<ul class="list-group">';
+            bookmarks.forEach(bookmark => {
+                const {questionId, subject, system} = bookmark;
+                const question = getQuestionFromData(questionId, subject, system);
+                if (question) {
+                    html += `
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <a href="#" onclick="loadQuestion(${questionId}, '${subject}', '${system}')">سؤال رقم ${questionId} (${subject} - ${system})</a>
+                            <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId})">
+                                ازالة
+                            </button>
+                        </li>
+                    `;
+                } else {
+                    html += `
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>سؤال رقم ${questionId} (${subject} - ${system}) - Failed to load</span>
+                            <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId})">
+                                ازالة
+                            </button>
+                        </li>
+                    `;
+                }
+            });
+            html += '</ul>';
+            container.innerHTML = html;
         });
-        html += '</ul>';
-        container.innerHTML = html;
-    });
 }
 
 // Get Question from Data
@@ -623,47 +579,16 @@ function getQuestionFromData(questionId, subject, system) {
     return null;
 }
 
-
-function fetchQuestionFromGitHub(questionId, subject, system) {
-
-    const questionUrl = `https://raw.githubusercontent.com/${githubUsername}/${githubRepo}/${githubBranch}/Data/${encodeURIComponent(subject)}/${encodeURIComponent(system)}/${encodeURIComponent(questionId)}/question.json`;
-
-    return fetch(questionUrl)
-    .then(response => response.json())
-    .then(questionData => {
-                // Store the question in questionsData
-                if (!questionsData[subject]) questionsData[subject] = {};
-                if (!questionsData[subject][system]) questionsData[subject][system] = [];
-                questionsData[subject][system].push({...questionData, subject_name: subject, system_name: system});
-                return questionData;
-            })
-    .catch(error => {
-        console.error('حدث خطأ اثناء استلام الاسئلة المحفوظة', error);
-        return null;
-    })
-
-
-}
-
 // Remove Bookmark
-function removeBookmark(questionId, subject, system) {
-    const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId && b.subject === subject && b.system === system);
+function removeBookmark(questionId) {
+    const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId);
     if (bookmarkIndex !== -1) {
         bookmarks.splice(bookmarkIndex,1);
-        // Update Firestore if user is logged in
-        if (auth.currentUser) {
-            db.collection('users').doc(auth.currentUser.uid).update({
-                bookmarks: bookmarks
-            }).catch(error => {
-                console.error("Error removing bookmark:", error);
-                showToast("حدث خطأ أثناء إزالة الإشارة المرجعية.");
-            });
-        }
+        localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
         loadBookmarks();
         showToast('تم ازالة السؤال من قائمة الاسئلة المحفوظة');
     }
 }
-
 
 // Show Toast
 function showToast(message) {
@@ -754,46 +679,4 @@ function filterQuestions(allQuestions) {
         `;
         questionsList.appendChild(col);
     });
-}
-
-
-async function loadUserData(userId) {
-    try {
-        const userDoc = await db.collection('users').doc(userId).get();
-        if (userDoc.exists) {
-            const userData = userDoc.data();
-            bookmarks = userData.bookmarks || [];
-            userAnswers = userData.answers || {};
-        } else {
-            await db.collection('users').doc(userId).set({
-                bookmarks: [],
-                answers: {}
-            });
-        }
-    } catch (error) {
-        console.error("Error loading user data:", error);
-        showToast('حدث خطأ اثناء تحميل بيانات المستخدم');
-    }
-}
-
-function restoreLastPage() {
-    const lastPage = localStorage.getItem('currentPage') || 'home-page';
-    const lastQuestion = JSON.parse(localStorage.getItem('lastQuestion'));
-    selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
-
-    if (lastPage === 'questions-list-page' || lastPage === 'question-page') {
-        if (selectedSystems && selectedSystems.length > 0) {
-            loadQuestionsList(selectedSystems).then(() => {
-                if (lastPage === 'question-page' && lastQuestion) {
-                    loadQuestion(lastQuestion.questionId, lastQuestion.subject, lastQuestion.system);
-                } else {
-                    showPage('questions-list-page', false);
-                }
-            });
-        } else {
-            showPage('home-page', false);
-        }
-    } else {
-        showPage(lastPage, false);
-    }
 }
