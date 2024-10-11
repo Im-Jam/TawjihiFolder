@@ -2,75 +2,96 @@
 // GitHub Repository Information
 const githubUsername = 'Im-Jam';
 const githubRepo = 'Bank';
-const githubBranch = 'main'; // or the branch where your data is stored
+const githubBranch = 'main';
 
 // Global Variables
 let subjects = [];
 let systemsData = {};
 let questionsData = {};
-let bookmarks = []; // Will be loaded from Firestore
-let userAnswers = {}; // Will be loaded from Firestore
+let bookmarks = [];
+let userAnswers = {};
 
 // User's Selection
 let selectedSubjects = JSON.parse(localStorage.getItem('selectedSubjects')) || [];
 let selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
 
-// Firebase Initialization (Add firestore)
-// Assuming firebase.js is included and contains firebaseConfig and app initialization
-
-// Initialize Firebase (Make sure firebase.js is included and contains firebaseConfig)
+// Firebase Initialization
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
-import { GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 
-// Initialize Firebase
+// Initialize Firebase (Replace with your actual config)
+const firebaseConfig = {
+    apiKey: "AIzaSyCF1VuNvhbHF5L3qiSjER0s-gQWEiIAPq8",
+    authDomain: "tawjihifolder.firebaseapp.com",
+    projectId: "tawjihifolder",
+    storageBucket: "tawjihifolder.appspot.com",
+    messagingSenderId: "963092650429",
+    appId: "1:963092650429:web:ce896548cf328b66d2dad4",
+    measurementId: "G-487PZPDLJT"
+  };
 initializeApp(firebaseConfig);
 const auth = getAuth();
 const provider = new GoogleAuthProvider();
 const db = getFirestore();
 const storage = getStorage();
 
-
-// Initialize Application (Modify to load data from Firestore)
+// Initialize Application
 document.addEventListener('DOMContentLoaded', function() {
-
-    auth.onAuthStateChanged(user => { // Add this block
-
+    auth.onAuthStateChanged(user => {
         if (user) {
-
-            loadUserData(user.uid).then(() => { // Load data after login
+            loadUserData(user.uid).then(() => {
                 loadSubjectsFromGitHub();
                 initializeDarkMode();
                 restoreLastPage();
-
+                // Display user info and sign-out button
+                const userInfo = document.getElementById('user-info');
+                const loginButton = document.getElementById('login-button');
+                userInfo.innerHTML = `<span>${user.displayName}</span><button class="btn btn-outline-danger ms-2" id="sign-out-button">تسجيل الخروج</button>`;
+                document.getElementById('sign-out-button').addEventListener('click', () => {
+                    auth.signOut().then(() => {
+                        showToast('تم تسجيل الخروج بنجاح');
+                        userInfo.innerHTML = '';
+                        loginButton.style.display = 'block';
+                        localStorage.removeItem('selectedSubjects');
+                        localStorage.removeItem('selectedSystems');
+                    }).catch(error => {
+                        console.error("Sign-out error:", error);
+                        showToast('حدث خطأ أثناء تسجيل الخروج.');
+                    });
+                });
+                loginButton.style.display = 'none';
             });
-
         } else {
-            // User is signed out - Proceed as usual (no saved data)
             loadSubjectsFromGitHub();
             initializeDarkMode();
             restoreLastPage();
-
-
+            const loginButton = document.getElementById('login-button');
+            const userInfo = document.getElementById('user-info');
+            userInfo.innerHTML = '';
+            loginButton.addEventListener('click', () => {
+                auth.signInWithPopup(provider).then(result => {
+                    const user = result.user;
+                    loadUserData(user.uid);
+                }).catch(error => {
+                    console.error("Sign-in error:", error);
+                    showToast('حدث خطأ أثناء تسجيل الدخول');
+                });
+            });
         }
     });
 });
-
-
 
 // Initialize Dark Mode
 function initializeDarkMode() {
     const darkModeToggle = document.getElementById('darkModeToggle');
     const body = document.body;
-
     if (localStorage.getItem('darkMode') === 'enabled') {
         body.classList.add('dark-mode');
         darkModeToggle.innerHTML = '<i class="bi bi-sun-fill"></i> الوضع الفاتح';
     }
-
     darkModeToggle.addEventListener('click', function(e) {
         e.preventDefault();
         body.classList.toggle('dark-mode');
@@ -155,7 +176,7 @@ function getSelectedSubjects() {
 function fetchSystemsFromGitHub(selectedSubjects) {
     const systemsContainer = document.getElementById('systems-container');
     const proceedButton = document.getElementById('proceed-button');
-    systemsData = {}; // Reset systems data
+    systemsData = {};
     if (selectedSubjects.length === 0) {
         systemsContainer.innerHTML = '<p>Select one or more subjects to view available systems.</p>';
         proceedButton.disabled = true;
@@ -258,7 +279,7 @@ document.getElementById('proceed-button').addEventListener('click', function() {
 
 // Load Questions List
 function loadQuestionsList(selectedSystems) {
-    questionsData = {}; // Reset questions data
+    questionsData = {};
     const questionsList = document.getElementById('questions-list');
     questionsList.innerHTML = '';
     let fetchPromises = [];
@@ -490,7 +511,7 @@ function saveAnswer(questionId, questionData) {
     const isCorrect = selectedChoice === questionData.correct_choice;
     userAnswers[questionId] = { userAnswer: selectedChoice, isCorrect };
     // Save to Firestore
-    if (auth.currentUser) {  // Check if user is logged in
+    if (auth.currentUser) {
         db.collection('users').doc(auth.currentUser.uid).update({
             answers: userAnswers
         }).catch(error => {
@@ -531,24 +552,19 @@ function toggleBookmark(questionId, subject, system) {
     } else {
         // Add bookmark
         bookmarks.push(bookmark);
-
         bookmarkButton.textContent = 'الغاء حفظ السؤال';
         showToast('تم حفظ السؤال');
     }
 
     // Save bookmarks to Firestore
-     if (auth.currentUser) {
+    if (auth.currentUser) {
         db.collection('users').doc(auth.currentUser.uid).update({
             bookmarks: bookmarks
         }).catch(error => {
-             console.error("Error saving bookmark:", error);
-             showToast("حدث خطأ أثناء حفظ الإشارة المرجعية.");
-
-
-         });
-
-     }
-
+            console.error("Error saving bookmark:", error);
+            showToast("حدث خطأ أثناء حفظ الإشارة المرجعية.");
+        });
+    }
 }
 
 // Load Bookmarks
@@ -747,17 +763,14 @@ async function loadUserData(userId) {
             bookmarks = userData.bookmarks || [];
             userAnswers = userData.answers || {};
         } else {
-            // Create a new document for the user if it doesn't exist
             await db.collection('users').doc(userId).set({
                 bookmarks: [],
                 answers: {}
-            })
+            });
         }
-
     } catch (error) {
         console.error("Error loading user data:", error);
         showToast('حدث خطأ اثناء تحميل بيانات المستخدم');
-
     }
 }
 
