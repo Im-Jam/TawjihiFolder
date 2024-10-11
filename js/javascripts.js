@@ -12,13 +12,31 @@ let bookmarks = []; // Will be loaded from Firestore
 let userAnswers = {}; // Will be loaded from Firestore
 
 // User's Selection
-let selectedSubjects = [];
-let selectedSystems = [];
+let selectedSubjects = JSON.parse(localStorage.getItem('selectedSubjects')) || [];
+let selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
 
-// Firebase Initialization (Already done in HTML)
+// Firebase Initialization (Add firestore)
+// Assuming firebase.js is included and contains firebaseConfig and app initialization
+
+// Initialize Firebase (Make sure firebase.js is included and contains firebaseConfig)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getStorage } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
+import { GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+
+
+// Initialize Firebase
+initializeApp(firebaseConfig);
+const auth = getAuth();
+const provider = new GoogleAuthProvider();
+const db = getFirestore();
+const storage = getStorage();
+
 
 // Initialize Application (Modify to load data from Firestore)
 document.addEventListener('DOMContentLoaded', function() {
+
     auth.onAuthStateChanged(user => { // Add this block
 
         if (user) {
@@ -40,6 +58,8 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+
 
 // Initialize Dark Mode
 function initializeDarkMode() {
@@ -75,7 +95,6 @@ function loadSubjectsFromGitHub() {
         })
         .catch(error => {
             console.error('Error fetching subjects:', error);
-            showToast('حدث خطأ أثناء جلب المواد.');
         });
 }
 
@@ -163,7 +182,6 @@ function fetchSystemsFromGitHub(selectedSubjects) {
         .catch(error => {
             console.error('Error fetching systems:', error);
             systemsContainer.innerHTML = '<p class="text-danger">Error loading systems. Please try again later.</p>';
-            showToast('حدث خطأ أثناء جلب الوحدات.');
         });
 }
 
@@ -278,7 +296,6 @@ function loadQuestionsList(selectedSystems) {
         .catch(error => {
             console.error('Error fetching questions:', error);
             questionsList.innerHTML = '<p class="text-danger">Error loading questions. Please try again later.</p>';
-            showToast('حدث خطأ أثناء جلب الأسئلة.');
         });
 }
 
@@ -374,7 +391,7 @@ function loadQuestion(questionId, subject, system) {
     }
     // Update Bookmark Button
     const bookmarkButton = document.getElementById('bookmarkQuestion');
-    const isBookmarked = bookmarks.some(b => b.questionId == questionId && b.subject === subject && b.system === system);
+    const isBookmarked = bookmarks.some(b => b.questionId == questionId);
     if (isBookmarked) {
         bookmarkButton.textContent = 'الغاء حفظ السؤال';
     } else {
@@ -474,7 +491,7 @@ function saveAnswer(questionId, questionData) {
     userAnswers[questionId] = { userAnswer: selectedChoice, isCorrect };
     // Save to Firestore
     if (auth.currentUser) {  // Check if user is logged in
-        firestore.collection('users').doc(auth.currentUser.uid).update({
+        db.collection('users').doc(auth.currentUser.uid).update({
             answers: userAnswers
         }).catch(error => {
             console.error("Error saving answer:", error);
@@ -521,7 +538,7 @@ function toggleBookmark(questionId, subject, system) {
 
     // Save bookmarks to Firestore
      if (auth.currentUser) {
-        firestore.collection('users').doc(auth.currentUser.uid).update({
+        db.collection('users').doc(auth.currentUser.uid).update({
             bookmarks: bookmarks
         }).catch(error => {
              console.error("Error saving bookmark:", error);
@@ -615,8 +632,9 @@ function removeBookmark(questionId, subject, system) {
     const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId && b.subject === subject && b.system === system);
     if (bookmarkIndex !== -1) {
         bookmarks.splice(bookmarkIndex,1);
+        // Update Firestore if user is logged in
         if (auth.currentUser) {
-            firestore.collection('users').doc(auth.currentUser.uid).update({
+            db.collection('users').doc(auth.currentUser.uid).update({
                 bookmarks: bookmarks
             }).catch(error => {
                 console.error("Error removing bookmark:", error);
@@ -627,6 +645,7 @@ function removeBookmark(questionId, subject, system) {
         showToast('تم ازالة السؤال من قائمة الاسئلة المحفوظة');
     }
 }
+
 
 // Show Toast
 function showToast(message) {
@@ -719,16 +738,17 @@ function filterQuestions(allQuestions) {
     });
 }
 
+
 async function loadUserData(userId) {
     try {
-        const userDoc = await firestore.collection('users').doc(userId).get();
+        const userDoc = await db.collection('users').doc(userId).get();
         if (userDoc.exists) {
             const userData = userDoc.data();
             bookmarks = userData.bookmarks || [];
             userAnswers = userData.answers || {};
         } else {
             // Create a new document for the user if it doesn't exist
-            await firestore.collection('users').doc(userId).set({
+            await db.collection('users').doc(userId).set({
                 bookmarks: [],
                 answers: {}
             })
@@ -762,37 +782,3 @@ function restoreLastPage() {
         showPage(lastPage, false);
     }
 }
-
-
-//Sign-in/Sign-out Logic
-const loginButton = document.getElementById('login-button');
-const userInfo = document.getElementById('user-info');
-
-auth.onAuthStateChanged(user => {
-    if (user) {
-        // User is signed in
-        userInfo.innerHTML = `<span>${user.displayName}</span><button class="btn btn-outline-danger ms-2" id="sign-out-button">تسجيل الخروج</button>`;
-        document.getElementById('sign-out-button').addEventListener('click', () => {
-            auth.signOut().then(() => {
-                showToast('تم تسجيل الخروج بنجاح');
-                location.reload(); //refresh the page after logout
-            }).catch(error => {
-                console.error("Sign-out error:", error);
-                showToast('حدث خطأ أثناء تسجيل الخروج.');
-            });
-        });
-    } else {
-        // User is signed out
-        userInfo.innerHTML = ''; // Clear user info
-        loginButton.style.display = 'block'; // Show login button
-    }
-});
-
-loginButton.addEventListener('click', () => {
-    auth.signInWithPopup(provider).then(result => {
-        showToast('تم تسجيل الدخول بنجاح');
-    }).catch(error => {
-        console.error("Sign-in error:", error);
-        showToast('حدث خطأ أثناء تسجيل الدخول');
-    });
-});
