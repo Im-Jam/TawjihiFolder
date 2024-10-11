@@ -15,11 +15,12 @@ let userAnswers = {};
 let selectedSubjects = JSON.parse(localStorage.getItem('selectedSubjects')) || [];
 let selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
 
-// Firebase Initialization
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { getStorage } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
+// Import Firebase services FIRST
+import { initializeApp } from "firebase/app"; // Updated path
+import { getAuth, GoogleAuthProvider } from "firebase/auth"; // Updated path
+import { getFirestore } from "firebase/firestore"; // Updated path
+import { getStorage } from "firebase/storage"; // Updated path
+
 
 
 // Initialize Firebase (Replace with your actual config)
@@ -32,11 +33,12 @@ const firebaseConfig = {
     appId: "1:963092650429:web:ce896548cf328b66d2dad4",
     measurementId: "G-487PZPDLJT"
   };
-initializeApp(firebaseConfig);
-const auth = getAuth();
+// Initialize Firebase ONCE
+const app = initializeApp(firebaseConfig);  // Get the app instance
+const auth = getAuth(app); // Pass the app instance
 const provider = new GoogleAuthProvider();
-const db = getFirestore();
-const storage = getStorage();
+const db = getFirestore(app); // Pass the app instance
+const storage = getStorage(app); // Pass the app instance
 
 // Initialize Application
 document.addEventListener('DOMContentLoaded', function() {
