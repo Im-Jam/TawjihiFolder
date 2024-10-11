@@ -66,13 +66,6 @@
             display: block;
         }
     </style>
-    <!-- Firebase SDK -->
-    <!-- Firebase App (the core Firebase SDK) -->
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-    <!-- Firebase Authentication -->
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-    <!-- Firebase Firestore -->
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
     <!-- Navbar -->
@@ -87,7 +80,7 @@
                 <!-- Left Side of Navbar -->
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                     <li class="nav-item">
-                        <a class="nav-link active" href="#" onclick="showPage('home-page')">الصفحة الرئيسية</a>
+                        <a class="nav-link" href="#" onclick="showPage('home-page')">الصفحة الرئيسية</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#" onclick="showPage('bookmarks-page')">الاسئلة المحفوظة</a>
@@ -95,13 +88,10 @@
                 </ul>
                 <!-- Right Side of Navbar -->
                 <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-                    <li class="nav-item me-2">
+                    <li class="nav-item">
                         <a class="nav-link" href="#" id="darkModeToggle">
                             <i class="bi bi-moon-fill"></i> الوضع الداكن
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <button id="authButton" class="btn btn-outline-light">Sign In with Google</button>
                     </li>
                 </ul>
                 <!-- Removed Search Form -->
@@ -114,10 +104,6 @@
         <div id="home-page" class="page active">
             <div class="container mt-4">
                 <h1>اختيار المواد والوحدات</h1>
-                <!-- User Status -->
-                <div id="userStatus" class="mb-4">
-                    <span id="welcomeMessage" class="text-success"></span>
-                </div>
                 <!-- Subject Selection -->
                 <div class="mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -242,22 +228,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Scripts -->
     <script>
-        // Firebase configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyCF1VuNvhbHF5L3qiSjER0s-gQWEiIAPq8",
-            authDomain: "tawjihifolder.firebaseapp.com",
-            projectId: "tawjihifolder",
-            storageBucket: "tawjihifolder.appspot.com",
-            messagingSenderId: "963092650429",
-            appId: "1:963092650429:web:ce896548cf328b66d2dad4",
-            measurementId: "G-487PZPDLJT"
-        };
-
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.firestore();
-
         // GitHub Repository Information
         const githubUsername = 'Im-Jam';
         const githubRepo = 'Bank';
@@ -267,163 +237,39 @@
         let subjects = [];
         let systemsData = {};
         let questionsData = {};
-        let bookmarks = [];
-        let userAnswers = {};
-        let selectedSubjects = [];
-        let selectedSystems = [];
-        let currentUser = null;
-        let currentQuestion = null;
+        let bookmarks = JSON.parse(localStorage.getItem('bookmarks')) || [];
+        let userAnswers = JSON.parse(localStorage.getItem('userAnswers')) || {};
+
+        // User's Selection
+        let selectedSubjects = JSON.parse(localStorage.getItem('selectedSubjects')) || [];
+        let selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
 
         // Initialize Application
         document.addEventListener('DOMContentLoaded', function() {
-            initializeFirebaseAuth();
             loadSubjectsFromGitHub();
             initializeDarkMode();
 
-            // Restore last page if user is signed in
-            auth.onAuthStateChanged(user => {
-                if (user) {
-                    currentUser = user;
-                    loadUserData();
-                } else {
-                    currentUser = null;
-                    updateUIForUnauthenticatedUser();
-                }
-            });
+            // Restore last page
+            const lastPage = localStorage.getItem('currentPage') || 'home-page';
+            const lastQuestion = JSON.parse(localStorage.getItem('lastQuestion'));
+            selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
 
-            // Proceed Button Event
-            document.getElementById('proceed-button').addEventListener('click', function() {
-                if (selectedSystems.length === 0) {
-                    showToast('حدد على الاقل وحدة واحدة');
-                    return;
-                }
-                loadQuestionsList(selectedSystems);
-            });
-        });
-
-        // Initialize Firebase Authentication
-        function initializeFirebaseAuth() {
-            const authButton = document.getElementById('authButton');
-
-            authButton.addEventListener('click', () => {
-                if (currentUser) {
-                    signOutUser();
-                } else {
-                    signInWithGoogle();
-                }
-            });
-        }
-
-        // Sign In with Google
-        function signInWithGoogle() {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            auth.signInWithPopup(provider)
-                .then((result) => {
-                    // Successful sign-in handled by onAuthStateChanged
-                })
-                .catch((error) => {
-                    console.error('Error signing in:', error);
-                    showToast('فشل تسجيل الدخول');
-                });
-        }
-
-        // Sign Out
-        function signOutUser() {
-            auth.signOut()
-                .then(() => {
-                    showToast('تم تسجيل الخروج');
-                })
-                .catch((error) => {
-                    console.error('Error signing out:', error);
-                    showToast('فشل تسجيل الخروج');
-                });
-        }
-
-        // Load User Data from Firestore
-        function loadUserData() {
-            if (!currentUser) return;
-
-            const userRef = db.collection('users').doc(currentUser.uid);
-            userRef.get().then((doc) => {
-                if (doc.exists) {
-                    const data = doc.data();
-                    bookmarks = data.bookmarks || [];
-                    userAnswers = data.userAnswers || {};
-                    selectedSubjects = data.selectedSubjects || [];
-                    selectedSystems = data.selectedSystems || [];
-                    updateUI();
-                } else {
-                    // Initialize user data
-                    userRef.set({
-                        bookmarks: [],
-                        userAnswers: {},
-                        selectedSubjects: [],
-                        selectedSystems: [],
-                        currentPage: 'home-page'
+            if (lastPage === 'questions-list-page' || lastPage === 'question-page') {
+                if (selectedSystems && selectedSystems.length > 0) {
+                    loadQuestionsList(selectedSystems).then(() => {
+                        if (lastPage === 'question-page' && lastQuestion) {
+                            loadQuestion(lastQuestion.questionId, lastQuestion.subject, lastQuestion.system);
+                        } else {
+                            showPage('questions-list-page', false);
+                        }
                     });
+                } else {
+                    showPage('home-page', false);
                 }
-            }).catch((error) => {
-                console.error('Error loading user data:', error);
-            });
-        }
-
-        // Save User Data to Firestore
-        function saveUserData() {
-            if (!currentUser) return;
-
-            const userRef = db.collection('users').doc(currentUser.uid);
-            userRef.set({
-                bookmarks,
-                userAnswers,
-                selectedSubjects,
-                selectedSystems
-            }, { merge: true }).catch((error) => {
-                console.error('Error saving user data:', error);
-            });
-        }
-
-        // Update UI based on user data
-        function updateUI() {
-            updateUserStatus();
-            updateSubjectCheckboxes();
-            updateSystemCheckboxes();
-            if (document.getElementById('questions-list-page').classList.contains('active')) {
-                displayQuestionsList();
-            }
-            if (document.getElementById('bookmarks-page').classList.contains('active')) {
-                loadBookmarks();
-            }
-        }
-
-        // Update User Status in UI
-        function updateUserStatus() {
-            const welcomeMessage = document.getElementById('welcomeMessage');
-            if (currentUser) {
-                welcomeMessage.textContent = `مرحبا، ${currentUser.displayName}`;
-                document.getElementById('authButton').textContent = 'تسجيل الخروج';
             } else {
-                welcomeMessage.textContent = '';
-                document.getElementById('authButton').textContent = 'Sign In with Google';
+                showPage(lastPage, false);
             }
-        }
-
-        // Update UI for Unauthenticated Users
-        function updateUIForUnauthenticatedUser() {
-            updateUserStatus();
-            // Clear user-specific data
-            bookmarks = [];
-            userAnswers = {};
-            selectedSubjects = [];
-            selectedSystems = [];
-            updateSubjectCheckboxes();
-            updateSystemCheckboxes();
-            if (document.getElementById('bookmarks-page').classList.contains('active')) {
-                loadBookmarks();
-            }
-            if (document.getElementById('questions-list-page').classList.contains('active')) {
-                displayQuestionsList();
-            }
-        }
+        });
 
         // Initialize Dark Mode
         function initializeDarkMode() {
@@ -459,7 +305,6 @@
                 })
                 .catch(error => {
                     console.error('Error fetching subjects:', error);
-                    showToast('فشل تحميل المواد');
                 });
         }
 
@@ -483,14 +328,12 @@
             subjectCheckboxes.forEach(checkbox => {
                 checkbox.addEventListener('change', function() {
                     selectedSubjects = getSelectedSubjects();
-                    if (currentUser) {
-                        saveUserData();
-                    }
+                    localStorage.setItem('selectedSubjects', JSON.stringify(selectedSubjects));
                     fetchSystemsFromGitHub(selectedSubjects);
                 });
             });
-            // Restore previously selected subjects if user is signed in
-            if (currentUser && selectedSubjects.length > 0) {
+            // Restore previously selected subjects
+            if (selectedSubjects.length > 0) {
                 subjectCheckboxes.forEach(checkbox => {
                     if (selectedSubjects.includes(checkbox.value)) {
                         checkbox.checked = true;
@@ -505,18 +348,8 @@
                     checkbox.checked = !allSelected;
                 });
                 selectedSubjects = getSelectedSubjects();
-                if (currentUser) {
-                    saveUserData();
-                }
+                localStorage.setItem('selectedSubjects', JSON.stringify(selectedSubjects));
                 fetchSystemsFromGitHub(selectedSubjects);
-            });
-        }
-
-        // Update Subject Checkboxes based on selectedSubjects
-        function updateSubjectCheckboxes() {
-            const subjectCheckboxes = document.querySelectorAll('.subject-checkbox');
-            subjectCheckboxes.forEach(checkbox => {
-                checkbox.checked = selectedSubjects.includes(checkbox.value);
             });
         }
 
@@ -536,10 +369,7 @@
             if (selectedSubjects.length === 0) {
                 systemsContainer.innerHTML = '<p>Select one or more subjects to view available systems.</p>';
                 proceedButton.disabled = true;
-                selectedSystems = [];
-                if (currentUser) {
-                    saveUserData();
-                }
+                localStorage.removeItem('selectedSystems');
                 return;
             }
             systemsContainer.innerHTML = '<p>جاري تحميل الوحدات</p>';
@@ -587,14 +417,12 @@
             systemCheckboxes.forEach(checkbox => {
                 checkbox.addEventListener('change', function() {
                     selectedSystems = getSelectedSystems();
-                    if (currentUser) {
-                        saveUserData();
-                    }
+                    localStorage.setItem('selectedSystems', JSON.stringify(selectedSystems));
                     updateProceedButtonState();
                 });
             });
-            // Restore previously selected systems if user is signed in
-            if (currentUser && selectedSystems.length > 0) {
+            // Restore previously selected systems
+            if (selectedSystems.length > 0) {
                 systemCheckboxes.forEach(checkbox => {
                     if (selectedSystems.some(sel => sel.subject === checkbox.dataset.subject && sel.system === checkbox.value)) {
                         checkbox.checked = true;
@@ -609,20 +437,10 @@
                     checkbox.checked = !allSelected;
                 });
                 selectedSystems = getSelectedSystems();
-                if (currentUser) {
-                    saveUserData();
-                }
+                localStorage.setItem('selectedSystems', JSON.stringify(selectedSystems));
                 updateProceedButtonState();
             });
             updateProceedButtonState();
-        }
-
-        // Update System Checkboxes based on selectedSystems
-        function updateSystemCheckboxes() {
-            const systemCheckboxes = document.querySelectorAll('.system-checkbox');
-            systemCheckboxes.forEach(checkbox => {
-                checkbox.checked = selectedSystems.some(sel => sel.subject === checkbox.dataset.subject && sel.system === checkbox.value);
-            });
         }
 
         // Update Proceed Button State
@@ -639,77 +457,283 @@
                         .map(checkbox => ({subject: checkbox.dataset.subject, system: checkbox.value}));
         }
 
-        // Show Toast
-        function showToast(message) {
-            const toastBody = document.querySelector('#liveToast .toast-body');
-            toastBody.textContent = message;
-            const toast = new bootstrap.Toast(document.getElementById('liveToast'));
-            toast.show();
-        }
+        // Proceed Button Event
+        document.getElementById('proceed-button').addEventListener('click', function() {
+            if (selectedSystems.length === 0) {
+                alert('حدد على الاقل وحدة واحدة');
+                return;
+            }
+            loadQuestionsList(selectedSystems);
+        });
 
-        // Show Page Function
-        function showPage(pageId, addToHistory=true) {
-            const pages = document.querySelectorAll('.page');
-            pages.forEach(page => {
-                page.classList.remove('active');
+        // Load Questions List
+        function loadQuestionsList(selectedSystems) {
+            questionsData = {}; // Reset questions data
+            const questionsList = document.getElementById('questions-list');
+            questionsList.innerHTML = '';
+            let fetchPromises = [];
+
+            selectedSystems.forEach(({subject, system}) => {
+                const url = `https://api.github.com/repos/${githubUsername}/${githubRepo}/contents/Data/${encodeURIComponent(subject)}/${encodeURIComponent(system)}?ref=${githubBranch}`;
+                let systemQuestions = [];
+                fetchPromises.push(
+                    fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        const questionFolders = data.filter(item => item.type === 'dir');
+                        let questionFetches = questionFolders.map(folder => {
+                            const questionUrl = `https://raw.githubusercontent.com/${githubUsername}/${githubRepo}/${githubBranch}/Data/${encodeURIComponent(subject)}/${encodeURIComponent(system)}/${encodeURIComponent(folder.name)}/question.json`;
+                            return fetch(questionUrl)
+                                .then(response => response.json())
+                                .then(questionData => {
+                                    systemQuestions.push({...questionData, subject_name: subject, system_name: system});
+                                });
+                        });
+                        return Promise.all(questionFetches);
+                    })
+                    .then(() => {
+                        if (!questionsData[subject]) questionsData[subject] = {};
+                        questionsData[subject][system] = systemQuestions;
+                    })
+                );
             });
-            document.getElementById(pageId).classList.add('active');
 
-            // Update active class on navbar
-            const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
-            navLinks.forEach(link => {
-                link.classList.remove('active');
-            });
-            if (pageId === 'home-page') {
-                navLinks[0].classList.add('active');
-            } else if (pageId === 'bookmarks-page') {
-                navLinks[1].classList.add('active');
-                loadBookmarks();
-            }
-            if (pageId === 'questions-list-page') {
-                displayQuestionsList();
-            }
-            if (pageId === 'question-page') {
-                // Do nothing, handled separately
-            }
-
-            // Save current page to Firestore if user is signed in
-            if (currentUser) {
-                db.collection('users').doc(currentUser.uid).update({
-                    currentPage: pageId
-                }).catch((error) => {
-                    console.error('Error saving current page:', error);
+            return Promise.all(fetchPromises)
+                .then(() => {
+                    displayQuestionsList();
+                    showPage('questions-list-page');
+                })
+                .catch(error => {
+                    console.error('Error fetching questions:', error);
+                    questionsList.innerHTML = '<p class="text-danger">Error loading questions. Please try again later.</p>';
                 });
-            }
-
-            if (addToHistory) {
-                history.pushState({pageId: pageId}, '', '');
-            }
         }
 
-        // Handle Back Button Navigation
-        window.addEventListener('popstate', function(event) {
-            if (event.state && event.state.pageId) {
-                showPage(event.state.pageId, false);
-            } else {
-                // Default to home-page or last saved page
-                if (currentUser) {
-                    db.collection('users').doc(currentUser.uid).get().then((doc) => {
-                        if (doc.exists) {
-                            const data = doc.data();
-                            showPage(data.currentPage || 'home-page', false);
-                        } else {
-                            showPage('home-page', false);
-                        }
-                    }).catch((error) => {
-                        console.error('Error getting user data:', error);
-                        showPage('home-page', false);
+        // Display Questions List
+        function displayQuestionsList() {
+            const questionsList = document.getElementById('questions-list');
+            questionsList.innerHTML = '';
+            let questions = [];
+            for (const subject in questionsData) {
+                for (const system in questionsData[subject]) {
+                    questionsData[subject][system].forEach(question => {
+                        questions.push(question);
                     });
-                } else {
-                    showPage('home-page', false);
                 }
             }
-        });
+            if (questions.length === 0) {
+                questionsList.innerHTML = '<p>No questions available for the selected systems.</p>';
+                return;
+            }
+            questions.forEach(question => {
+                const col = document.createElement('div');
+                col.className = 'col';
+                col.innerHTML = `
+                    <div class="card h-100">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title">Question ${question.question_id}</h5>
+                            <p class="card-text">${stripHTML(question.question_text).substring(0, 100)}...</p>
+                            <p class="card-text">
+                                <strong>المادة</strong> ${question.subject_name}<br>
+                                <strong>الوحدة</strong> ${question.system_name}
+                            </p>
+                            <div class="mt-auto">
+                                ${getAnswerBadge(question.question_id)}
+                                <button class="btn btn-primary mt-2 w-100" onclick="loadQuestion(${question.question_id}, '${question.subject_name}', '${question.system_name}')">الذهاب الى السؤال</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                questionsList.appendChild(col);
+            });
+            // Update Breadcrumb
+            const breadcrumb = document.getElementById('questions-breadcrumb');
+            breadcrumb.innerHTML = `
+                <li class="breadcrumb-item"><a href="#" onclick="showPage('home-page')">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Questions List</li>
+            `;
+            // Filter Event
+            document.getElementById('filter').addEventListener('change', function() {
+                filterQuestions(questions);
+            });
+            filterQuestions(questions);
+        }
+
+        // Strip HTML Tags
+        function stripHTML(html) {
+            let div = document.createElement("div");
+            div.innerHTML = html;
+            return div.textContent || div.innerText || "";
+        }
+
+        // Get Answer Badge
+        function getAnswerBadge(questionId) {
+            if (userAnswers[questionId]) {
+                if (userAnswers[questionId].isCorrect) {
+                    return '<span class="badge bg-success">اجابتك صحيحة</span>';
+                } else {
+                    return '<span class="badge bg-danger">اجابتك خاطئة</span>';
+                }
+            } else {
+                return '<span class="badge bg-secondary">لا يوجد اجابة</span>';
+            }
+        }
+
+        // Load Individual Question
+        function loadQuestion(questionId, subject, system) {
+            const questionData = questionsData[subject][system].find(q => q.question_id == questionId);
+            if (!questionData) return;
+            document.getElementById('question-title').textContent = `سؤال رقم ${questionId}`;
+            document.getElementById('question-text').innerHTML = questionData.question_text;
+            // Load Choices
+            const choicesDiv = document.getElementById('choices');
+            choicesDiv.innerHTML = '';
+            for (const [letter, choiceText] of Object.entries(questionData.choices)) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-outline-primary choice-btn text-start';
+                btn.dataset.choice = letter;
+                btn.innerHTML = `<strong>${letter}.</strong> ${choiceText}`;
+                btn.addEventListener('click', function() {
+                    selectChoice(this);
+                });
+                choicesDiv.appendChild(btn);
+            }
+            // Update Bookmark Button
+            const bookmarkButton = document.getElementById('bookmarkQuestion');
+            const isBookmarked = bookmarks.some(b => b.questionId == questionId);
+            if (isBookmarked) {
+                bookmarkButton.textContent = 'الغاء حفظ السؤال';
+            } else {
+                bookmarkButton.textContent = 'احفظ السؤال';
+            }
+            // Update Answer Explanation
+            const answerExplanation = document.getElementById('answerExplanation');
+            answerExplanation.classList.add('hidden');
+            document.getElementById('revealAnswer').textContent = 'اظهار الاجابة';
+            // Set Event Listeners
+            selectedChoice = userAnswers[questionId]?.userAnswer || null;
+            updateChoiceButtons();
+            document.getElementById('saveAnswer').onclick = function() {
+                saveAnswer(questionId, questionData);
+            };
+            document.getElementById('revealAnswer').onclick = function() {
+                revealAnswer(questionData);
+            };
+            document.getElementById('bookmarkQuestion').onclick = function() {
+                toggleBookmark(questionId, subject, system);
+            };
+            document.getElementById('correct-answer').textContent = `(الاجابة الصحيحة) ${questionData.correct_choice}`;
+            document.getElementById('explanation-text').innerHTML = questionData.explanation || 'لا يوجد اجابة';
+            // Update Navigation Buttons
+            updateNavigationButtons(questionId, subject, system);
+            // Update Breadcrumb
+            const breadcrumb = document.getElementById('question-breadcrumb');
+            breadcrumb.innerHTML = `
+                <li class="breadcrumb-item"><a href="#" onclick="showPage('home-page')">الصفحة الرئيسية</a></li>
+                <li class="breadcrumb-item"><a href="#" onclick="showPage('questions-list-page')">الاسئلة</a></li>
+                <li class="breadcrumb-item active" aria-current="page">سؤال رقم ${questionId}</li>
+            `;
+            // Save current page and question
+            localStorage.setItem('currentPage', 'question-page');
+            localStorage.setItem('lastQuestion', JSON.stringify({questionId: questionId, subject: subject, system: system}));
+            showPage('question-page');
+        }
+
+        // Update Navigation Buttons
+        function updateNavigationButtons(questionId, subject, system) {
+            const questions = questionsData[subject][system];
+            const index = questions.findIndex(q => q.question_id == questionId);
+
+            document.getElementById('previous-question').onclick = function() {
+                if (index > 0) {
+                    const prevQuestion = questions[index - 1];
+                    loadQuestion(prevQuestion.question_id, subject, system);
+                } else {
+                    showToast('مازلت في السؤال الاول');
+                }
+            };
+
+            document.getElementById('next-question').onclick = function() {
+                if (index < questions.length - 1) {
+                    const nextQuestion = questions[index + 1];
+                    loadQuestion(nextQuestion.question_id, subject, system);
+                } else {
+                    showToast('مبارك، هذا السؤال الاخير');
+                }
+            };
+        }
+
+        // Choice Selection
+        let selectedChoice = null;
+        function selectChoice(btn) {
+            const choiceButtons = document.querySelectorAll('.choice-btn');
+            choiceButtons.forEach(button => {
+                button.classList.remove('btn-primary');
+                button.classList.add('btn-outline-primary');
+            });
+            btn.classList.remove('btn-outline-primary');
+            btn.classList.add('btn-primary');
+            selectedChoice = btn.dataset.choice;
+        }
+
+        // Update Choice Buttons
+        function updateChoiceButtons() {
+            const choiceButtons = document.querySelectorAll('.choice-btn');
+            choiceButtons.forEach(button => {
+                if (button.dataset.choice === selectedChoice) {
+                    button.classList.remove('btn-outline-primary');
+                    button.classList.add('btn-primary');
+                } else {
+                    button.classList.remove('btn-primary');
+                    button.classList.add('btn-outline-primary');
+                }
+            });
+        }
+
+        // Save Answer
+        function saveAnswer(questionId, questionData) {
+            if (!selectedChoice) {
+                showToast('حدد اجابة واحدة قبل الحفظ');
+                return;
+            }
+            const isCorrect = selectedChoice === questionData.correct_choice;
+            userAnswers[questionId] = {userAnswer: selectedChoice, isCorrect};
+            localStorage.setItem('userAnswers', JSON.stringify(userAnswers));
+            showToast('تم حفظ الاجابة بنجاح');
+        }
+
+        // Reveal Answer
+        function revealAnswer(questionData) {
+            if (!selectedChoice) {
+                showToast('قم بختيار اجابة اولا قبل محاولة عرض الاجالة النموذجية');
+                return;
+            }
+            const answerExplanation = document.getElementById('answerExplanation');
+            answerExplanation.classList.toggle('hidden');
+            const revealButton = document.getElementById('revealAnswer');
+            if (answerExplanation.classList.contains('hidden')) {
+                revealButton.textContent = 'اظهار الاجابة';
+            } else {
+                revealButton.textContent = 'اخفاء الاجابة';
+            }
+        }
+
+        // Toggle Bookmark
+        function toggleBookmark(questionId, subject, system) {
+            const bookmarkButton = document.getElementById('bookmarkQuestion');
+            const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId);
+            if (bookmarkIndex !== -1) {
+                bookmarks.splice(bookmarkIndex, 1);
+                bookmarkButton.textContent = 'احفظ السؤال';
+                showToast('تم الغاء حفظ السؤال');
+            } else {
+                bookmarks.push({questionId, subject, system});
+                bookmarkButton.textContent = 'الغاء حفظ السؤال';
+                showToast('تم حفظ السؤال');
+            }
+            localStorage.setItem('الاسئلة المحفوظة', JSON.stringify(bookmarks));
+        }
 
         // Load Bookmarks
         function loadBookmarks() {
@@ -777,19 +801,6 @@
                 });
         }
 
-        // Remove Bookmark
-        function removeBookmark(questionId) {
-            const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId);
-            if (bookmarkIndex !== -1) {
-                bookmarks.splice(bookmarkIndex,1);
-                if (currentUser) {
-                    saveUserData();
-                }
-                loadBookmarks();
-                showToast('تم ازالة السؤال من قائمة الاسئلة المحفوظة');
-            }
-        }
-
         // Get Question from Data
         function getQuestionFromData(questionId, subject, system) {
             if (questionsData[subject] && questionsData[subject][system]) {
@@ -798,272 +809,65 @@
             return null;
         }
 
-        // Load Individual Question
-        function loadQuestion(questionId, subject, system) {
-            const questionData = questionsData[subject][system].find(q => q.question_id == questionId);
-            if (!questionData) return;
-            document.getElementById('question-title').textContent = `سؤال رقم ${questionId}`;
-            document.getElementById('question-text').innerHTML = questionData.question_text;
-            // Load Choices
-            const choicesDiv = document.getElementById('choices');
-            choicesDiv.innerHTML = '';
-            for (const [letter, choiceText] of Object.entries(questionData.choices)) {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'btn btn-outline-primary choice-btn text-start mb-2';
-                btn.dataset.choice = letter;
-                btn.innerHTML = `<strong>${letter}.</strong> ${choiceText}`;
-                btn.addEventListener('click', function() {
-                    selectChoice(this);
-                });
-                choicesDiv.appendChild(btn);
-            }
-            // Update Bookmark Button
-            const bookmarkButton = document.getElementById('bookmarkQuestion');
-            const isBookmarked = bookmarks.some(b => b.questionId == questionId);
-            if (isBookmarked) {
-                bookmarkButton.textContent = 'الغاء حفظ السؤال';
-            } else {
-                bookmarkButton.textContent = 'احفظ السؤال';
-            }
-            // Update Answer Explanation
-            const answerExplanation = document.getElementById('answerExplanation');
-            answerExplanation.classList.add('hidden');
-            document.getElementById('revealAnswer').textContent = 'اظهار الاجابة';
-            // Set Event Listeners
-            document.getElementById('saveAnswer').onclick = function() {
-                saveAnswer(questionId, questionData);
-            };
-            document.getElementById('revealAnswer').onclick = function() {
-                revealAnswer(questionData);
-            };
-            document.getElementById('bookmarkQuestion').onclick = function() {
-                toggleBookmark(questionId, subject, system);
-            };
-            document.getElementById('correct-answer').textContent = `(الاجابة الصحيحة) ${questionData.correct_choice}`;
-            document.getElementById('explanation-text').innerHTML = questionData.explanation || 'لا يوجد اجابة';
-            // Load user's selected answer if exists
-            const selectedChoice = currentUser ? (userAnswers[questionId]?.userAnswer || null) : null;
-            highlightSelectedChoice(selectedChoice);
-            // Update Navigation Buttons
-            updateNavigationButtons(questionId, subject, system);
-            // Update Breadcrumb
-            const breadcrumb = document.getElementById('question-breadcrumb');
-            breadcrumb.innerHTML = `
-                <li class="breadcrumb-item"><a href="#" onclick="showPage('home-page')">الصفحة الرئيسية</a></li>
-                <li class="breadcrumb-item"><a href="#" onclick="showPage('questions-list-page')">الاسئلة</a></li>
-                <li class="breadcrumb-item active" aria-current="page">سؤال رقم ${questionId}</li>
-            `;
-            // Save current page and question
-            if (currentUser) {
-                db.collection('users').doc(currentUser.uid).update({
-                    currentPage: 'question-page',
-                    lastQuestion: { questionId: questionId, subject: subject, system: system }
-                }).catch((error) => {
-                    console.error('Error saving current question:', error);
-                });
-            }
-            showPage('question-page');
-            currentQuestion = { questionId, subject, system };
-        }
-
-        // Highlight Selected Choice
-        function highlightSelectedChoice(selectedChoice) {
-            const choiceButtons = document.querySelectorAll('.choice-btn');
-            choiceButtons.forEach(button => {
-                if (button.dataset.choice === selectedChoice) {
-                    button.classList.remove('btn-outline-primary');
-                    button.classList.add('btn-primary');
-                } else {
-                    button.classList.remove('btn-primary');
-                    button.classList.add('btn-outline-primary');
-                }
-            });
-        }
-
-        // Choice Selection
-        function selectChoice(btn) {
-            const choiceButtons = document.querySelectorAll('.choice-btn');
-            choiceButtons.forEach(button => {
-                button.classList.remove('btn-primary');
-                button.classList.add('btn-outline-primary');
-            });
-            btn.classList.remove('btn-outline-primary');
-            btn.classList.add('btn-primary');
-            const selectedChoice = btn.dataset.choice;
-            if (currentUser) {
-                userAnswers[currentQuestion.questionId] = { userAnswer: selectedChoice, isCorrect: selectedChoice === questionsData[currentQuestion.subject][currentQuestion.system].find(q => q.question_id == currentQuestion.questionId).correct_choice };
-                saveUserData();
-            }
-        }
-
-        // Save Answer
-        function saveAnswer(questionId, questionData) {
-            const selectedChoice = document.querySelector('.choice-btn.btn-primary')?.dataset.choice;
-            if (!selectedChoice) {
-                showToast('حدد اجابة واحدة قبل الحفظ');
-                return;
-            }
-            const isCorrect = selectedChoice === questionData.correct_choice;
-            if (currentUser) {
-                userAnswers[questionId] = { userAnswer: selectedChoice, isCorrect };
-                saveUserData();
-                showToast('تم حفظ الاجابة بنجاح');
-            } else {
-                showToast('قم بتسجيل الدخول لحفظ الاجابة');
-            }
-        }
-
-        // Reveal Answer
-        function revealAnswer(questionData) {
-            if (!currentUser && !userAnswers[currentQuestion.questionId]) {
-                showToast('قم بتسجيل الدخول لحفظ الاجابة قبل محاولة عرض الاجابة الصحيحة');
-                return;
-            }
-            const answerExplanation = document.getElementById('answerExplanation');
-            answerExplanation.classList.toggle('hidden');
-            const revealButton = document.getElementById('revealAnswer');
-            if (answerExplanation.classList.contains('hidden')) {
-                revealButton.textContent = 'اظهار الاجابة';
-            } else {
-                revealButton.textContent = 'اخفاء الاجابة';
-            }
-        }
-
-        // Toggle Bookmark
-        function toggleBookmark(questionId, subject, system) {
-            const bookmarkButton = document.getElementById('bookmarkQuestion');
+        // Remove Bookmark
+        function removeBookmark(questionId) {
             const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId);
             if (bookmarkIndex !== -1) {
-                bookmarks.splice(bookmarkIndex, 1);
-                bookmarkButton.textContent = 'احفظ السؤال';
-                showToast('تم الغاء حفظ السؤال');
+                bookmarks.splice(bookmarkIndex,1);
+                localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
+                loadBookmarks();
+                showToast('تم ازالة السؤال من قائمة الاسئلة المحفوظة');
+            }
+        }
+
+        // Show Toast
+        function showToast(message) {
+            const toastBody = document.querySelector('#liveToast .toast-body');
+            toastBody.textContent = message;
+            const toast = new bootstrap.Toast(document.getElementById('liveToast'));
+            toast.show();
+        }
+
+        // Show Page Function
+        function showPage(pageId, addToHistory=true) {
+            const pages = document.querySelectorAll('.page');
+            pages.forEach(page => {
+                page.classList.remove('active');
+            });
+            document.getElementById(pageId).classList.add('active');
+
+            // Update active class on navbar
+            const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+            });
+            if (pageId === 'home-page') {
+                navLinks[0].classList.add('active');
+            } else if (pageId === 'bookmarks-page') {
+                navLinks[1].classList.add('active');
+                loadBookmarks();
+            }
+            if (pageId === 'questions-list-page') {
+                displayQuestionsList();
+            }
+            // Save current page in localStorage
+            localStorage.setItem('currentPage', pageId);
+
+            if (addToHistory) {
+                history.pushState({pageId: pageId}, '', '');
+            }
+        }
+
+        // Handle Back Button Navigation
+        window.addEventListener('popstate', function(event) {
+            if (event.state && event.state.pageId) {
+                showPage(event.state.pageId, false);
             } else {
-                bookmarks.push({ questionId, subject, system });
-                bookmarkButton.textContent = 'الغاء حفظ السؤال';
-                showToast('تم حفظ السؤال');
+                // Default to home-page or last saved page
+                const lastPage = localStorage.getItem('currentPage') || 'home-page';
+                showPage(lastPage, false);
             }
-            if (currentUser) {
-                saveUserData();
-            }
-        }
-
-        // Load Questions List
-        function loadQuestionsList(selectedSystems) {
-            questionsData = {}; // Reset questions data
-            const questionsList = document.getElementById('questions-list');
-            questionsList.innerHTML = '';
-            let fetchPromises = [];
-
-            selectedSystems.forEach(({subject, system}) => {
-                const url = `https://api.github.com/repos/${githubUsername}/${githubRepo}/contents/Data/${encodeURIComponent(subject)}/${encodeURIComponent(system)}?ref=${githubBranch}`;
-                let systemQuestions = [];
-                fetchPromises.push(
-                    fetch(url)
-                    .then(response => response.json())
-                    .then(data => {
-                        const questionFolders = data.filter(item => item.type === 'dir');
-                        let questionFetches = questionFolders.map(folder => {
-                            const questionUrl = `https://raw.githubusercontent.com/${githubUsername}/${githubRepo}/${githubBranch}/Data/${encodeURIComponent(subject)}/${encodeURIComponent(system)}/${encodeURIComponent(folder.name)}/question.json`;
-                            return fetch(questionUrl)
-                                .then(response => response.json())
-                                .then(questionData => {
-                                    systemQuestions.push({ ...questionData, subject_name: subject, system_name: system });
-                                });
-                        });
-                        return Promise.all(questionFetches);
-                    })
-                    .then(() => {
-                        if (!questionsData[subject]) questionsData[subject] = {};
-                        questionsData[subject][system] = systemQuestions;
-                    })
-                );
-            });
-
-            Promise.all(fetchPromises)
-                .then(() => {
-                    displayQuestionsList();
-                    showPage('questions-list-page');
-                })
-                .catch(error => {
-                    console.error('Error fetching questions:', error);
-                    questionsList.innerHTML = '<p class="text-danger">Error loading questions. Please try again later.</p>';
-                });
-        }
-
-        // Display Questions List
-        function displayQuestionsList() {
-            const questionsList = document.getElementById('questions-list');
-            questionsList.innerHTML = '';
-            let questions = [];
-            for (const subject in questionsData) {
-                for (const system in questionsData[subject]) {
-                    questionsData[subject][system].forEach(question => {
-                        questions.push(question);
-                    });
-                }
-            }
-            if (questions.length === 0) {
-                questionsList.innerHTML = '<p>No questions available for the selected systems.</p>';
-                return;
-            }
-            questions.forEach(question => {
-                const col = document.createElement('div');
-                col.className = 'col';
-                col.innerHTML = `
-                    <div class="card h-100">
-                        <div class="card-body d-flex flex-column">
-                            <h5 class="card-title">Question ${question.question_id}</h5>
-                            <p class="card-text">${stripHTML(question.question_text).substring(0, 100)}...</p>
-                            <p class="card-text">
-                                <strong>المادة</strong> ${question.subject_name}<br>
-                                <strong>الوحدة</strong> ${question.system_name}
-                            </p>
-                            <div class="mt-auto">
-                                ${getAnswerBadge(question.question_id)}
-                                <button class="btn btn-primary mt-2 w-100" onclick="loadQuestion(${question.question_id}, '${question.subject_name}', '${question.system_name}')">الذهاب الى السؤال</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                questionsList.appendChild(col);
-            });
-            // Update Breadcrumb
-            const breadcrumb = document.getElementById('questions-breadcrumb');
-            breadcrumb.innerHTML = `
-                <li class="breadcrumb-item"><a href="#" onclick="showPage('home-page')">الصفحة الرئيسية</a></li>
-                <li class="breadcrumb-item active" aria-current="page">Questions List</li>
-            `;
-            // Filter Event
-            document.getElementById('filter').addEventListener('change', function() {
-                filterQuestions(questions);
-            });
-            filterQuestions(questions);
-        }
-
-        // Strip HTML Tags
-        function stripHTML(html) {
-            let div = document.createElement("div");
-            div.innerHTML = html;
-            return div.textContent || div.innerText || "";
-        }
-
-        // Get Answer Badge
-        function getAnswerBadge(questionId) {
-            if (currentUser) {
-                if (userAnswers[questionId]) {
-                    if (userAnswers[questionId].isCorrect) {
-                        return '<span class="badge bg-success">اجابتك صحيحة</span>';
-                    } else {
-                        return '<span class="badge bg-danger">اجابتك خاطئة</span>';
-                    }
-                } else {
-                    return '<span class="badge bg-secondary">لا يوجد اجابة</span>';
-                }
-            } else {
-                return '<span class="badge bg-secondary">لا يوجد اجابة</span>';
-            }
-        }
+        });
 
         // Filter Questions
         function filterQuestions(allQuestions) {
@@ -1074,11 +878,11 @@
             if (filterType === 'all') {
                 filteredQuestions = allQuestions;
             } else if (filterType === 'correct') {
-                filteredQuestions = allQuestions.filter(q => currentUser && userAnswers[q.question_id]?.isCorrect);
+                filteredQuestions = allQuestions.filter(q => userAnswers[q.question_id]?.isCorrect);
             } else if (filterType === 'incorrect') {
-                filteredQuestions = allQuestions.filter(q => currentUser && userAnswers[q.question_id] && !userAnswers[q.question_id].isCorrect);
+                filteredQuestions = allQuestions.filter(q => userAnswers[q.question_id] && !userAnswers[q.question_id].isCorrect);
             } else if (filterType === 'unanswered') {
-                filteredQuestions = allQuestions.filter(q => !currentUser || !userAnswers[q.question_id]);
+                filteredQuestions = allQuestions.filter(q => !userAnswers[q.question_id]);
             }
             if (filteredQuestions.length === 0) {
                 questionsList.innerHTML = '<p>لا يوجد اسئلة تحت هذه التصفية</p>';
@@ -1105,47 +909,6 @@
                 `;
                 questionsList.appendChild(col);
             });
-        }
-
-        // Show Toast
-        function showToast(message) {
-            const toastBody = document.querySelector('#liveToast .toast-body');
-            toastBody.textContent = message;
-            const toast = new bootstrap.Toast(document.getElementById('liveToast'));
-            toast.show();
-        }
-
-        // Save User Data on Bookmark or Answer Change
-        // (Handled within respective functions)
-
-        // Display Systems after fetching
-        // (Handled within displaySystems())
-
-        // Display Questions List after fetching
-        // (Handled within displayQuestionsList())
-
-        // Update Navigation Buttons
-        function updateNavigationButtons(questionId, subject, system) {
-            const questions = questionsData[subject][system];
-            const index = questions.findIndex(q => q.question_id == questionId);
-
-            document.getElementById('previous-question').onclick = function() {
-                if (index > 0) {
-                    const prevQuestion = questions[index - 1];
-                    loadQuestion(prevQuestion.question_id, subject, system);
-                } else {
-                    showToast('مازلت في السؤال الاول');
-                }
-            };
-
-            document.getElementById('next-question').onclick = function() {
-                if (index < questions.length - 1) {
-                    const nextQuestion = questions[index + 1];
-                    loadQuestion(nextQuestion.question_id, subject, system);
-                } else {
-                    showToast('مبارك، هذا السؤال الاخير');
-                }
-            };
         }
     </script>
 </body>
