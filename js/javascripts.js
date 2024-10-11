@@ -1,4 +1,26 @@
 
+// js/scripts.js
+// Import Firebase SDKs
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+// Firebase Configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyCF1VuNvhbHF5L3qiSjER0s-gQWEiIAPq8",
+    authDomain: "tawjihifolder.firebaseapp.com",
+    projectId: "tawjihifolder",
+    storageBucket: "tawjihifolder.appspot.com",
+    messagingSenderId: "963092650429",
+    appId: "1:963092650429:web:ce896548cf328b66d2dad4",
+    measurementId: "G-487PZPDLJT"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
 // GitHub Repository Information
 const githubUsername = 'Im-Jam';
 const githubRepo = 'Bank';
@@ -8,12 +30,18 @@ const githubBranch = 'main'; // or the branch where your data is stored
 let subjects = [];
 let systemsData = {};
 let questionsData = {};
-let bookmarks = JSON.parse(localStorage.getItem('bookmarks')) || [];
-let userAnswers = JSON.parse(localStorage.getItem('userAnswers')) || {};
+let bookmarks = []; // Initialize as empty; will load based on auth state
+let userAnswers = {}; // Initialize as empty; will load based on auth state
 
 // User's Selection
 let selectedSubjects = JSON.parse(localStorage.getItem('selectedSubjects')) || [];
 let selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
+
+// DOM Elements
+const loginButton = document.getElementById('login-button');
+const userInfo = document.getElementById('user-info');
+const userName = document.getElementById('user-name');
+const signOutButton = document.getElementById('sign-out-button');
 
 // Initialize Application
 document.addEventListener('DOMContentLoaded', function() {
@@ -362,7 +390,7 @@ function loadQuestion(questionId, subject, system) {
     for (const [letter, choiceText] of Object.entries(questionData.choices)) {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'btn btn-outline-primary choice-btn text-start';
+        btn.className = 'btn btn-outline-primary choice-btn text-start mb-2';
         btn.dataset.choice = letter;
         btn.innerHTML = `<strong>${letter}.</strong> ${choiceText}`;
         btn.addEventListener('click', function() {
@@ -463,21 +491,41 @@ function updateChoiceButtons() {
 }
 
 // Save Answer
-function saveAnswer(questionId, questionData) {
+async function saveAnswer(questionId, questionData) {
     if (!selectedChoice) {
         showToast('حدد اجابة واحدة قبل الحفظ');
         return;
     }
     const isCorrect = selectedChoice === questionData.correct_choice;
     userAnswers[questionId] = {userAnswer: selectedChoice, isCorrect};
-    localStorage.setItem('userAnswers', JSON.stringify(userAnswers));
-    showToast('تم حفظ الاجابة بنجاح');
+    
+    if (auth.currentUser) {
+        // Save to Firestore
+        try {
+            const userDocRef = doc(db, "users", auth.currentUser.uid);
+            const answersColRef = collection(userDocRef, "answers");
+            const answerDocRef = doc(answersColRef, String(questionId));
+            await setDoc(answerDocRef, {
+                userAnswer: selectedChoice,
+                isCorrect: isCorrect,
+                timestamp: new Date()
+            });
+            showToast('تم حفظ الاجابة بنجاح');
+        } catch (error) {
+            console.error('Error saving answer to Firestore:', error);
+            showToast('فشل حفظ الاجابة.', true);
+        }
+    } else {
+        // Save to localStorage
+        localStorage.setItem('userAnswers', JSON.stringify(userAnswers));
+        showToast('تم حفظ الاجابة بنجاح');
+    }
 }
 
 // Reveal Answer
 function revealAnswer(questionData) {
     if (!selectedChoice) {
-        showToast('قم بختيار اجابة اولا قبل محاولة عرض الاجالة النموذجية');
+        showToast('قم بختيار اجابة اولا قبل محاولة عرض الاجابة النموذجية');
         return;
     }
     const answerExplanation = document.getElementById('answerExplanation');
@@ -491,24 +539,79 @@ function revealAnswer(questionData) {
 }
 
 // Toggle Bookmark
-function toggleBookmark(questionId, subject, system) {
+async function toggleBookmark(questionId, subject, system) {
     const bookmarkButton = document.getElementById('bookmarkQuestion');
     const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId);
     if (bookmarkIndex !== -1) {
+        // Remove Bookmark
         bookmarks.splice(bookmarkIndex, 1);
+        if (auth.currentUser) {
+            try {
+                const userDocRef = doc(db, "users", auth.currentUser.uid);
+                const bookmarksColRef = collection(userDocRef, "bookmarks");
+                const bookmarkDocRef = doc(bookmarksColRef, String(questionId));
+                await deleteDoc(bookmarkDocRef);
+                showToast('تم الغاء حفظ السؤال');
+            } catch (error) {
+                console.error('Error removing bookmark from Firestore:', error);
+                showToast('فشل الغاء حفظ السؤال.', true);
+            }
+        } else {
+            // Update localStorage
+            localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
+            showToast('تم الغاء حفظ السؤال');
+        }
         bookmarkButton.textContent = 'احفظ السؤال';
-        showToast('تم الغاء حفظ السؤال');
     } else {
+        // Add Bookmark
         bookmarks.push({questionId, subject, system});
+        if (auth.currentUser) {
+            try {
+                const userDocRef = doc(db, "users", auth.currentUser.uid);
+                const bookmarksColRef = collection(userDocRef, "bookmarks");
+                const bookmarkDocRef = doc(bookmarksColRef, String(questionId));
+                await setDoc(bookmarkDocRef, {
+                    subject: subject,
+                    system: system,
+                    timestamp: new Date()
+                });
+                showToast('تم حفظ السؤال');
+            } catch (error) {
+                console.error('Error adding bookmark to Firestore:', error);
+                showToast('فشل حفظ السؤال.', true);
+            }
+        } else {
+            // Update localStorage
+            localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
+            showToast('تم حفظ السؤال');
+        }
         bookmarkButton.textContent = 'الغاء حفظ السؤال';
-        showToast('تم حفظ السؤال');
     }
-    localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
 }
 
 // Load Bookmarks
-function loadBookmarks() {
+async function loadBookmarks() {
     const container = document.getElementById('bookmarks-container');
+    container.innerHTML = '';
+    if (auth.currentUser) {
+        // Load from Firestore
+        try {
+            const userDocRef = doc(db, "users", auth.currentUser.uid);
+            const bookmarksColRef = collection(userDocRef, "bookmarks");
+            const bookmarksSnapshot = await getDocs(bookmarksColRef);
+            bookmarks = [];
+            bookmarksSnapshot.forEach(doc => {
+                bookmarks.push({questionId: parseInt(doc.id), subject: doc.data().subject, system: doc.data().system});
+            });
+        } catch (error) {
+            console.error('Error loading bookmarks from Firestore:', error);
+            showToast('فشل تحميل المفضلات.', true);
+        }
+    } else {
+        // Load from localStorage
+        bookmarks = JSON.parse(localStorage.getItem('bookmarks')) || [];
+    }
+
     container.innerHTML = '';
     if (bookmarks.length === 0) {
         container.innerHTML = '<p>ليس لديك اي اسئلة محفوظة</p>';
@@ -541,35 +644,34 @@ function loadBookmarks() {
         }
     });
 
-    Promise.all(fetchPromises)
-        .then(() => {
-            let html = '<ul class="list-group">';
-            bookmarks.forEach(bookmark => {
-                const {questionId, subject, system} = bookmark;
-                const question = getQuestionFromData(questionId, subject, system);
-                if (question) {
-                    html += `
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <a href="#" onclick="loadQuestion(${questionId}, '${subject}', '${system}')">سؤال رقم ${questionId} (${subject} - ${system})</a>
-                            <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId})">
-                                ازالة
-                            </button>
-                        </li>
-                    `;
-                } else {
-                    html += `
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <span>سؤال رقم ${questionId} (${subject} - ${system}) - Failed to load</span>
-                            <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId})">
-                                ازالة
-                            </button>
-                        </li>
-                    `;
-                }
-            });
-            html += '</ul>';
-            container.innerHTML = html;
-        });
+    await Promise.all(fetchPromises);
+
+    let html = '<ul class="list-group">';
+    bookmarks.forEach(bookmark => {
+        const {questionId, subject, system} = bookmark;
+        const question = getQuestionFromData(questionId, subject, system);
+        if (question) {
+            html += `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <a href="#" onclick="loadQuestion(${questionId}, '${subject}', '${system}')">سؤال رقم ${questionId} (${subject} - ${system})</a>
+                    <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId})">
+                        ازالة
+                    </button>
+                </li>
+            `;
+        } else {
+            html += `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>سؤال رقم ${questionId} (${subject} - ${system}) - Failed to load</span>
+                    <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId})">
+                        ازالة
+                    </button>
+                </li>
+            `;
+        }
+    });
+    html += '</ul>';
+    container.innerHTML = html;
 }
 
 // Get Question from Data
@@ -581,21 +683,43 @@ function getQuestionFromData(questionId, subject, system) {
 }
 
 // Remove Bookmark
-function removeBookmark(questionId) {
+async function removeBookmark(questionId) {
     const bookmarkIndex = bookmarks.findIndex(b => b.questionId == questionId);
     if (bookmarkIndex !== -1) {
+        const {subject, system} = bookmarks[bookmarkIndex];
         bookmarks.splice(bookmarkIndex,1);
-        localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
+        if (auth.currentUser) {
+            try {
+                const userDocRef = doc(db, "users", auth.currentUser.uid);
+                const bookmarksColRef = collection(userDocRef, "bookmarks");
+                const bookmarkDocRef = doc(bookmarksColRef, String(questionId));
+                await deleteDoc(bookmarkDocRef);
+                showToast('تم ازالة السؤال من قائمة الاسئلة المحفوظة');
+            } catch (error) {
+                console.error('Error removing bookmark from Firestore:', error);
+                showToast('فشل ازالة المفضلة.', true);
+            }
+        } else {
+            localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
+            showToast('تم ازالة السؤال من قائمة الاسئلة المحفوظة');
+        }
         loadBookmarks();
-        showToast('تم ازالة السؤال من قائمة الاسئلة المحفوظة');
     }
 }
 
 // Show Toast
-function showToast(message) {
-    const toastBody = document.querySelector('#liveToast .toast-body');
+function showToast(message, isError = false) {
+    const toastLiveExample = document.getElementById('liveToast');
+    const toastBody = toastLiveExample.querySelector('.toast-body');
     toastBody.textContent = message;
-    const toast = new bootstrap.Toast(document.getElementById('liveToast'));
+    if (isError) {
+        toastLiveExample.classList.remove('bg-primary', 'bg-success', 'bg-warning');
+        toastLiveExample.classList.add('bg-danger');
+    } else {
+        toastLiveExample.classList.remove('bg-danger', 'bg-success', 'bg-warning');
+        toastLiveExample.classList.add('bg-primary');
+    }
+    const toast = new bootstrap.Toast(toastLiveExample);
     toast.show();
 }
 
@@ -681,3 +805,96 @@ function filterQuestions(allQuestions) {
         questionsList.appendChild(col);
     });
 }
+
+// Firebase Authentication Setup
+
+// Google Auth Provider
+const provider = new GoogleAuthProvider();
+
+// Sign-In with Google
+loginButton.addEventListener('click', () => {
+    signInWithPopup(auth, provider)
+        .then((result) => {
+            // Successful sign-in
+            showToast(`مرحبا، ${result.user.displayName}!`);
+        })
+        .catch((error) => {
+            console.error('Error during sign-in:', error);
+            showToast('فشل تسجيل الدخول. حاول مرة أخرى.', true);
+        });
+});
+
+// Sign-Out
+signOutButton.addEventListener('click', () => {
+    signOut(auth)
+        .then(() => {
+            showToast('تم تسجيل الخروج بنجاح.');
+        })
+        .catch((error) => {
+            console.error('Error during sign-out:', error);
+            showToast('فشل تسجيل الخروج. حاول مرة أخرى.', true);
+        });
+});
+
+// Authentication State Listener
+onAuthStateChanged(auth, user => {
+    if (user) {
+        // User is signed in
+        userName.textContent = user.displayName;
+        userInfo.style.display = 'flex';
+        loginButton.style.display = 'none';
+        // Load user-specific data from Firestore
+        loadUserData(user.uid);
+    } else {
+        // User is signed out
+        userInfo.style.display = 'none';
+        loginButton.style.display = 'block';
+        // Load data from localStorage
+        bookmarks = JSON.parse(localStorage.getItem('bookmarks')) || [];
+        userAnswers = JSON.parse(localStorage.getItem('userAnswers')) || {};
+    }
+});
+
+// Function to Load User Data from Firestore
+async function loadUserData(uid) {
+    // Load Bookmarks
+    try {
+        const userDocRef = doc(db, "users", uid);
+        const bookmarksColRef = collection(userDocRef, "bookmarks");
+        const bookmarksSnapshot = await getDocs(bookmarksColRef);
+        bookmarks = [];
+        bookmarksSnapshot.forEach(doc => {
+            bookmarks.push({questionId: parseInt(doc.id), subject: doc.data().subject, system: doc.data().system});
+        });
+    } catch (error) {
+        console.error('Error loading bookmarks from Firestore:', error);
+        showToast('فشل تحميل المفضلات.', true);
+    }
+
+    // Load User Answers
+    try {
+        const userDocRef = doc(db, "users", uid);
+        const answersColRef = collection(userDocRef, "answers");
+        const answersSnapshot = await getDocs(answersColRef);
+        userAnswers = {};
+        answersSnapshot.forEach(doc => {
+            userAnswers[parseInt(doc.id)] = {
+                userAnswer: doc.data().userAnswer,
+                isCorrect: doc.data().isCorrect
+            };
+        });
+    } catch (error) {
+        console.error('Error loading answers from Firestore:', error);
+        showToast('فشل تحميل الاجابات.', true);
+    }
+}
+
+// Modify Load Bookmarks Function to Support Firestore
+// (Already handled in the loadBookmarks function above)
+
+// Modify Toggle Bookmark Function to Support Firestore
+// (Already handled in the toggleBookmark function above)
+
+// Modify Save Answer Function to Support Firestore
+// (Already handled in the saveAnswer function above)
+
