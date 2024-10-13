@@ -2,6 +2,9 @@
 
 
 
+// Initialize 
+
+
 
 // Import Firebase modules
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
@@ -26,7 +29,7 @@ const githubRepo = 'Bank';
 const githubBranch = 'main'; // or the branch where your data is stored
 
 // Firebase Configuration
-
+// TODO: Replace the below configuration with your actual Firebase project configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCF1VuNvhbHF5L3qiSjER0s-gQWEiIAPq8",
   authDomain: "tawjihifolder.firebaseapp.com",
@@ -36,7 +39,6 @@ const firebaseConfig = {
   appId: "1:963092650429:web:ce896548cf328b66d2dad4",
   measurementId: "G-487PZPDLJT"
 };
-
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -384,10 +386,6 @@ function loadQuestionsList(selectedSystems) {
             questionsList.innerHTML = '<p class="text-danger">Error loading questions. Please try again later.</p>';
         });
 }
-
-// The rest of your JavaScript functions remain largely the same.
-// Ensure you are using the modular syntax when interacting with Firebase.
-
 
 // Display Questions List
 function displayQuestionsList() {
@@ -792,7 +790,7 @@ function filterQuestions(allQuestions) {
 }
 
 // Backup Data to Firebase
-function backupData() {
+async function backupData() {
     const user = auth.currentUser;
     if (!user) {
         showToast('يجب عليك تسجيل الدخول للقيام بالنسخ الاحتياطي');
@@ -810,42 +808,41 @@ function backupData() {
         darkMode: localStorage.getItem('darkMode')
     };
 
-    // Save data to Firestore under the user's UID
-    db.collection('users').doc(user.uid).set(data)
-        .then(() => {
-            showToast('تم النسخ الاحتياطي بنجاح');
-        })
-        .catch((error) => {
-            console.error('Error backing up data:', error);
-            showToast('حدث خطأ أثناء النسخ الاحتياطي');
-        });
+    // Save data to Firestore under the user's UID using modular syntax
+    try {
+        const userDocRef = doc(db, 'users', user.uid);
+        await setDoc(userDocRef, data);
+        showToast('تم النسخ الاحتياطي بنجاح');
+    } catch (error) {
+        console.error('Error backing up data:', error);
+        showToast('حدث خطأ أثناء النسخ الاحتياطي');
+    }
 }
 
 // Restore Data from Firebase
-function restoreData() {
+async function restoreData() {
     const user = auth.currentUser;
     if (!user) {
         showToast('يجب عليك تسجيل الدخول لاستعادة البيانات');
         return;
     }
 
-    // Retrieve data from Firestore
-    db.collection('users').doc(user.uid).get()
-        .then((doc) => {
-            if (doc.exists) {
-                const data = doc.data();
-                // Update localStorage
-                for (const key in data) {
-                    localStorage.setItem(key, data[key]);
-                }
-                showToast('تم استعادة البيانات بنجاح، يرجى إعادة تحميل الصفحة');
-            } else {
-                showToast('لا توجد بيانات محفوظة للاستعادة');
+    try {
+        const userDocRef = doc(db, 'users', user.uid);
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            // Update localStorage
+            for (const key in data) {
+                localStorage.setItem(key, data[key]);
             }
-        })
-        .catch((error) => {
-            console.error('Error restoring data:', error);
-            showToast('حدث خطأ أثناء استعادة البيانات');
-        });
+            showToast('تم استعادة البيانات بنجاح، يرجى إعادة تحميل الصفحة');
+        } else {
+            showToast('لا توجد بيانات محفوظة للاستعادة');
+        }
+    } catch (error) {
+        console.error('Error restoring data:', error);
+        showToast('حدث خطأ أثناء استعادة البيانات');
+    }
 }
 
