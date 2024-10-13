@@ -1,4 +1,8 @@
 
+
+
+
+
 // Import Firebase modules
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics.js";
@@ -22,15 +26,17 @@ const githubRepo = 'Bank';
 const githubBranch = 'main'; // or the branch where your data is stored
 
 // Firebase Configuration
+
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
+  apiKey: "AIzaSyCF1VuNvhbHF5L3qiSjER0s-gQWEiIAPq8",
   authDomain: "tawjihifolder.firebaseapp.com",
   projectId: "tawjihifolder",
   storageBucket: "tawjihifolder.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
-  measurementId: "YOUR_MEASUREMENT_ID"
+  messagingSenderId: "963092650429",
+  appId: "1:963092650429:web:ce896548cf328b66d2dad4",
+  measurementId: "G-487PZPDLJT"
 };
+
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -842,3 +848,4 @@ function restoreData() {
             showToast('حدث خطأ أثناء استعادة البيانات');
         });
 }
+
