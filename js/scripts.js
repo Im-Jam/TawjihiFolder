@@ -1,50 +1,8 @@
 
-
-
-
-// Initialize 
-
-
-
-// Import Firebase modules
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics.js";
-import { 
-    getAuth, 
-    signInWithPopup, 
-    GoogleAuthProvider, 
-    signOut, 
-    onAuthStateChanged 
-} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-import { 
-    getFirestore, 
-    doc, 
-    setDoc, 
-    getDoc 
-} from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
-
 // GitHub Repository Information
 const githubUsername = 'Im-Jam';
 const githubRepo = 'Bank';
 const githubBranch = 'main'; // or the branch where your data is stored
-
-// Firebase Configuration
-// TODO: Replace the below configuration with your actual Firebase project configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCF1VuNvhbHF5L3qiSjER0s-gQWEiIAPq8",
-  authDomain: "tawjihifolder.firebaseapp.com",
-  projectId: "tawjihifolder",
-  storageBucket: "tawjihifolder.appspot.com",
-  messagingSenderId: "963092650429",
-  appId: "1:963092650429:web:ce896548cf328b66d2dad4",
-  measurementId: "G-487PZPDLJT"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-const auth = getAuth(app);
-const db = getFirestore(app);
 
 // Global Variables
 let subjects = [];
@@ -61,7 +19,6 @@ let selectedSystems = JSON.parse(localStorage.getItem('selectedSystems')) || [];
 document.addEventListener('DOMContentLoaded', function() {
     loadSubjectsFromGitHub();
     initializeDarkMode();
-    initializeAuthState();
 
     // Restore last page
     const lastPage = localStorage.getItem('currentPage') || 'home-page';
@@ -105,70 +62,6 @@ function initializeDarkMode() {
             darkModeToggle.innerHTML = '<i class="bi bi-moon-fill"></i> الوضع الداكن';
             localStorage.setItem('darkMode', 'disabled');
         }
-    });
-}
-
-// Initialize Firebase Authentication State
-function initializeAuthState() {
-    const loginButton = document.getElementById('loginButton');
-    const logoutButton = document.getElementById('logoutButton');
-    const backupButton = document.getElementById('backupButton');
-    const restoreButton = document.getElementById('restoreButton');
-    const userMenu = document.getElementById('userMenu');
-
-    onAuthStateChanged(auth, (user) => {
-        if (user) {
-            // User is signed in
-            loginButton.style.display = 'none';
-            logoutButton.style.display = 'block';
-            backupButton.style.display = 'block';
-            restoreButton.style.display = 'block';
-            userMenu.textContent = user.displayName || 'حسابي';
-        } else {
-            // User is signed out
-            loginButton.style.display = 'block';
-            logoutButton.style.display = 'none';
-            backupButton.style.display = 'none';
-            restoreButton.style.display = 'none';
-            userMenu.textContent = 'حسابي';
-        }
-    });
-
-    // Login Button Event
-    loginButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        const provider = new GoogleAuthProvider();
-        signInWithPopup(auth, provider)
-            .then((result) => {
-                showToast('تم تسجيل الدخول بنجاح');
-            })
-            .catch((error) => {
-                console.error('Error during sign in:', error);
-                showToast('حدث خطأ أثناء تسجيل الدخول');
-            });
-    });
-
-    // Logout Button Event
-    logoutButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        signOut(auth).then(() => {
-            showToast('تم تسجيل الخروج بنجاح');
-        }).catch((error) => {
-            console.error('Error during sign out:', error);
-            showToast('حدث خطأ أثناء تسجيل الخروج');
-        });
-    });
-
-    // Backup Button Event
-    backupButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        backupData();
-    });
-
-    // Restore Button Event
-    restoreButton.addEventListener('click', function(e) {
-        e.preventDefault();
-        restoreData();
     });
 }
 
@@ -245,12 +138,12 @@ function fetchSystemsFromGitHub(selectedSubjects) {
     const proceedButton = document.getElementById('proceed-button');
     systemsData = {}; // Reset systems data
     if (selectedSubjects.length === 0) {
-        systemsContainer.innerHTML = '<p>حدد مادة واحدة على الأقل أولاً</p>';
+        systemsContainer.innerHTML = '<p>Select one or more subjects to view available systems.</p>';
         proceedButton.disabled = true;
         localStorage.removeItem('selectedSystems');
         return;
     }
-    systemsContainer.innerHTML = '<p>جاري تحميل الوحدات...</p>';
+    systemsContainer.innerHTML = '<p>جاري تحميل الوحدات</p>';
     proceedButton.disabled = true;
 
     // Fetch systems for each selected subject
@@ -338,7 +231,7 @@ function getSelectedSystems() {
 // Proceed Button Event
 document.getElementById('proceed-button').addEventListener('click', function() {
     if (selectedSystems.length === 0) {
-        alert('حدد على الأقل وحدة واحدة');
+        alert('حدد على الاقل وحدة واحدة');
         return;
     }
     loadQuestionsList(selectedSystems);
@@ -400,7 +293,7 @@ function displayQuestionsList() {
         }
     }
     if (questions.length === 0) {
-        questionsList.innerHTML = '<p>لا توجد أسئلة متاحة للوحدات المحددة.</p>';
+        questionsList.innerHTML = '<p>No questions available for the selected systems.</p>';
         return;
     }
     questions.forEach(question => {
@@ -409,15 +302,15 @@ function displayQuestionsList() {
         col.innerHTML = `
             <div class="card h-100">
                 <div class="card-body d-flex flex-column">
-                    <h5 class="card-title">سؤال رقم ${question.question_id}</h5>
+                    <h5 class="card-title">Question ${question.question_id}</h5>
                     <p class="card-text">${stripHTML(question.question_text).substring(0, 100)}...</p>
                     <p class="card-text">
-                        <strong>المادة:</strong> ${question.subject_name}<br>
-                        <strong>الوحدة:</strong> ${question.system_name}
+                        <strong>المادة</strong> ${question.subject_name}<br>
+                        <strong>الوحدة</strong> ${question.system_name}
                     </p>
                     <div class="mt-auto">
                         ${getAnswerBadge(question.question_id)}
-                        <button class="btn btn-primary mt-2 w-100" onclick="loadQuestion(${question.question_id}, '${question.subject_name}', '${question.system_name}')">الذهاب إلى السؤال</button>
+                        <button class="btn btn-primary mt-2 w-100" onclick="loadQuestion(${question.question_id}, '${question.subject_name}', '${question.system_name}')">الذهاب الى السؤال</button>
                     </div>
                 </div>
             </div>
@@ -427,8 +320,8 @@ function displayQuestionsList() {
     // Update Breadcrumb
     const breadcrumb = document.getElementById('questions-breadcrumb');
     breadcrumb.innerHTML = `
-        <li class="breadcrumb-item"><a href="#" onclick="showPage('home-page')">الصفحة الرئيسية</a></li>
-        <li class="breadcrumb-item active" aria-current="page">قائمة الأسئلة</li>
+        <li class="breadcrumb-item"><a href="#" onclick="showPage('home-page')">Home</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Questions List</li>
     `;
     // Filter Event
     document.getElementById('filter').addEventListener('change', function() {
@@ -448,12 +341,12 @@ function stripHTML(html) {
 function getAnswerBadge(questionId) {
     if (userAnswers[questionId]) {
         if (userAnswers[questionId].isCorrect) {
-            return '<span class="badge bg-success">إجابتك صحيحة</span>';
+            return '<span class="badge bg-success">اجابتك صحيحة</span>';
         } else {
-            return '<span class="badge bg-danger">إجابتك خاطئة</span>';
+            return '<span class="badge bg-danger">اجابتك خاطئة</span>';
         }
     } else {
-        return '<span class="badge bg-secondary">لا توجد إجابة</span>';
+        return '<span class="badge bg-secondary">لا يوجد اجابة</span>';
     }
 }
 
@@ -481,14 +374,14 @@ function loadQuestion(questionId, subject, system) {
     const bookmarkButton = document.getElementById('bookmarkQuestion');
     const isBookmarked = bookmarks.some(b => b.questionId == questionId);
     if (isBookmarked) {
-        bookmarkButton.textContent = 'إلغاء حفظ السؤال';
+        bookmarkButton.textContent = 'الغاء حفظ السؤال';
     } else {
         bookmarkButton.textContent = 'احفظ السؤال';
     }
     // Update Answer Explanation
     const answerExplanation = document.getElementById('answerExplanation');
     answerExplanation.classList.add('hidden');
-    document.getElementById('revealAnswer').textContent = 'إظهار الإجابة';
+    document.getElementById('revealAnswer').textContent = 'اظهار الاجابة';
     // Set Event Listeners
     selectedChoice = userAnswers[questionId]?.userAnswer || null;
     updateChoiceButtons();
@@ -501,15 +394,15 @@ function loadQuestion(questionId, subject, system) {
     document.getElementById('bookmarkQuestion').onclick = function() {
         toggleBookmark(questionId, subject, system);
     };
-    document.getElementById('correct-answer').textContent = `(الإجابة الصحيحة) ${questionData.correct_choice}`;
-    document.getElementById('explanation-text').innerHTML = questionData.explanation || 'لا توجد إجابة';
+    document.getElementById('correct-answer').textContent = `(الاجابة الصحيحة) ${questionData.correct_choice}`;
+    document.getElementById('explanation-text').innerHTML = questionData.explanation || 'لا يوجد اجابة';
     // Update Navigation Buttons
     updateNavigationButtons(questionId, subject, system);
     // Update Breadcrumb
     const breadcrumb = document.getElementById('question-breadcrumb');
     breadcrumb.innerHTML = `
         <li class="breadcrumb-item"><a href="#" onclick="showPage('home-page')">الصفحة الرئيسية</a></li>
-        <li class="breadcrumb-item"><a href="#" onclick="showPage('questions-list-page')">الأسئلة</a></li>
+        <li class="breadcrumb-item"><a href="#" onclick="showPage('questions-list-page')">الاسئلة</a></li>
         <li class="breadcrumb-item active" aria-current="page">سؤال رقم ${questionId}</li>
     `;
     // Save current page and question
@@ -528,7 +421,7 @@ function updateNavigationButtons(questionId, subject, system) {
             const prevQuestion = questions[index - 1];
             loadQuestion(prevQuestion.question_id, subject, system);
         } else {
-            showToast('ما زلت في السؤال الأول');
+            showToast('مازلت في السؤال الاول');
         }
     };
 
@@ -537,7 +430,7 @@ function updateNavigationButtons(questionId, subject, system) {
             const nextQuestion = questions[index + 1];
             loadQuestion(nextQuestion.question_id, subject, system);
         } else {
-            showToast('مبارك، هذا السؤال الأخير');
+            showToast('مبارك، هذا السؤال الاخير');
         }
     };
 }
@@ -572,28 +465,28 @@ function updateChoiceButtons() {
 // Save Answer
 function saveAnswer(questionId, questionData) {
     if (!selectedChoice) {
-        showToast('حدد إجابة واحدة قبل الحفظ');
+        showToast('حدد اجابة واحدة قبل الحفظ');
         return;
     }
     const isCorrect = selectedChoice === questionData.correct_choice;
     userAnswers[questionId] = {userAnswer: selectedChoice, isCorrect};
     localStorage.setItem('userAnswers', JSON.stringify(userAnswers));
-    showToast('تم حفظ الإجابة بنجاح');
+    showToast('تم حفظ الاجابة بنجاح');
 }
 
 // Reveal Answer
 function revealAnswer(questionData) {
     if (!selectedChoice) {
-        showToast('قم باختيار إجابة أولاً قبل محاولة عرض الإجابة النموذجية');
+        showToast('قم بختيار اجابة اولا قبل محاولة عرض الاجالة النموذجية');
         return;
     }
     const answerExplanation = document.getElementById('answerExplanation');
     answerExplanation.classList.toggle('hidden');
     const revealButton = document.getElementById('revealAnswer');
     if (answerExplanation.classList.contains('hidden')) {
-        revealButton.textContent = 'إظهار الإجابة';
+        revealButton.textContent = 'اظهار الاجابة';
     } else {
-        revealButton.textContent = 'إخفاء الإجابة';
+        revealButton.textContent = 'اخفاء الاجابة';
     }
 }
 
@@ -604,10 +497,10 @@ function toggleBookmark(questionId, subject, system) {
     if (bookmarkIndex !== -1) {
         bookmarks.splice(bookmarkIndex, 1);
         bookmarkButton.textContent = 'احفظ السؤال';
-        showToast('تم إلغاء حفظ السؤال');
+        showToast('تم الغاء حفظ السؤال');
     } else {
         bookmarks.push({questionId, subject, system});
-        bookmarkButton.textContent = 'إلغاء حفظ السؤال';
+        bookmarkButton.textContent = 'الغاء حفظ السؤال';
         showToast('تم حفظ السؤال');
     }
     localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
@@ -618,7 +511,7 @@ function loadBookmarks() {
     const container = document.getElementById('bookmarks-container');
     container.innerHTML = '';
     if (bookmarks.length === 0) {
-        container.innerHTML = '<p>ليس لديك أي أسئلة محفوظة</p>';
+        container.innerHTML = '<p>ليس لديك اي اسئلة محفوظة</p>';
         return;
     }
 
@@ -642,7 +535,7 @@ function loadBookmarks() {
                     questionsData[subject][system].push({...questionData, subject_name: subject, system_name: system});
                 })
                 .catch(error => {
-                    console.error('حدث خطأ أثناء استلام الأسئلة المحفوظة', error);
+                    console.error('حدث خطأ اثناء استلام الاسئلة المحفوظة', error);
                 })
             );
         }
@@ -659,16 +552,16 @@ function loadBookmarks() {
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <a href="#" onclick="loadQuestion(${questionId}, '${subject}', '${system}')">سؤال رقم ${questionId} (${subject} - ${system})</a>
                             <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId})">
-                                إزالة
+                                ازالة
                             </button>
                         </li>
                     `;
                 } else {
                     html += `
                         <li class="list-group-item d-flex justify-content-between align-items-center">
-                            <span>سؤال رقم ${questionId} (${subject} - ${system}) - فشل في التحميل</span>
+                            <span>سؤال رقم ${questionId} (${subject} - ${system}) - Failed to load</span>
                             <button class="btn btn-sm btn-danger" onclick="removeBookmark(${questionId})">
-                                إزالة
+                                ازالة
                             </button>
                         </li>
                     `;
@@ -694,7 +587,7 @@ function removeBookmark(questionId) {
         bookmarks.splice(bookmarkIndex,1);
         localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
         loadBookmarks();
-        showToast('تم إزالة السؤال من قائمة الأسئلة المحفوظة');
+        showToast('تم ازالة السؤال من قائمة الاسئلة المحفوظة');
     }
 }
 
@@ -763,7 +656,7 @@ function filterQuestions(allQuestions) {
         filteredQuestions = allQuestions.filter(q => !userAnswers[q.question_id]);
     }
     if (filteredQuestions.length === 0) {
-        questionsList.innerHTML = '<p>لا توجد أسئلة تحت هذه التصفية</p>';
+        questionsList.innerHTML = '<p>لا يوجد اسئلة تحت هذه التصفية</p>';
         return;
     }
     filteredQuestions.forEach(question => {
@@ -775,12 +668,12 @@ function filterQuestions(allQuestions) {
                     <h5 class="card-title">سؤال رقم ${question.question_id}</h5>
                     <p class="card-text">${stripHTML(question.question_text).substring(0, 100)}...</p>
                     <p class="card-text">
-                        <strong>المادة:</strong> ${question.subject_name}<br>
-                        <strong>الوحدة:</strong> ${question.system_name}
+                        <strong>(المادة)</strong> ${question.subject_name}<br>
+                        <strong>(الوحدة)</strong> ${question.system_name}
                     </p>
                     <div class="mt-auto">
                         ${getAnswerBadge(question.question_id)}
-                        <button class="btn btn-primary mt-2 w-100" onclick="loadQuestion(${question.question_id}, '${question.subject_name}', '${question.system_name}')">إظهار السؤال</button>
+                        <button class="btn btn-primary mt-2 w-100" onclick="loadQuestion(${question.question_id}, '${question.subject_name}', '${question.system_name}')">اظهار السؤال</button>
                     </div>
                 </div>
             </div>
@@ -788,61 +681,3 @@ function filterQuestions(allQuestions) {
         questionsList.appendChild(col);
     });
 }
-
-// Backup Data to Firebase
-async function backupData() {
-    const user = auth.currentUser;
-    if (!user) {
-        showToast('يجب عليك تسجيل الدخول للقيام بالنسخ الاحتياطي');
-        return;
-    }
-
-    // Collect data from localStorage
-    const data = {
-        bookmarks: localStorage.getItem('bookmarks'),
-        userAnswers: localStorage.getItem('userAnswers'),
-        selectedSubjects: localStorage.getItem('selectedSubjects'),
-        selectedSystems: localStorage.getItem('selectedSystems'),
-        currentPage: localStorage.getItem('currentPage'),
-        lastQuestion: localStorage.getItem('lastQuestion'),
-        darkMode: localStorage.getItem('darkMode')
-    };
-
-    // Save data to Firestore under the user's UID using modular syntax
-    try {
-        const userDocRef = doc(db, 'users', user.uid);
-        await setDoc(userDocRef, data);
-        showToast('تم النسخ الاحتياطي بنجاح');
-    } catch (error) {
-        console.error('Error backing up data:', error);
-        showToast('حدث خطأ أثناء النسخ الاحتياطي');
-    }
-}
-
-// Restore Data from Firebase
-async function restoreData() {
-    const user = auth.currentUser;
-    if (!user) {
-        showToast('يجب عليك تسجيل الدخول لاستعادة البيانات');
-        return;
-    }
-
-    try {
-        const userDocRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(userDocRef);
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            // Update localStorage
-            for (const key in data) {
-                localStorage.setItem(key, data[key]);
-            }
-            showToast('تم استعادة البيانات بنجاح، يرجى إعادة تحميل الصفحة');
-        } else {
-            showToast('لا توجد بيانات محفوظة للاستعادة');
-        }
-    } catch (error) {
-        console.error('Error restoring data:', error);
-        showToast('حدث خطأ أثناء استعادة البيانات');
-    }
-}
-
