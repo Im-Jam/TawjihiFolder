@@ -395,7 +395,7 @@ function loadQuestion(questionId, subject, system) {
         toggleBookmark(questionId, subject, system);
     };
     document.getElementById('correct-answer').textContent = `(الاجابة الصحيحة) ${questionData.correct_choice}`;
-    document.getElementById('explanation-text').innerHTML = questionData.explanation || 'لا يوجد اجابة';
+    document.getElementById('explanation-text').innerHTML = questionData.explanation || 'لا يوجد شرح';
     // Update Navigation Buttons
     updateNavigationButtons(questionId, subject, system);
     // Update Breadcrumb
