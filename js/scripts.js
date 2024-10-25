@@ -441,7 +441,7 @@ function updateNavigationButtons(questionId, subject, system) {
             showToast('مبارك، هذا السؤال الاخير'); // "Congratulations, this is the last question"
         }
     };
-}
+
 
 // Choice Selection
 let selectedChoice = null;
