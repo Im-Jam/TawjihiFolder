@@ -1,4 +1,5 @@
 
+
 // GitHub Repository Information
 const githubUsername = 'Im-Jam';
 const githubRepo = 'Bank';
@@ -429,7 +430,7 @@ function updateNavigationButtons(questionId, subject, system) {
             const prevQuestion = allQuestionsList[index - 1];
             loadQuestion(prevQuestion.questionId, prevQuestion.subject, prevQuestion.system);
         } else {
-            showToast('مازلت في السؤال الاول'); // "You are at the first question"
+            showToast('مازلت في السؤال الاول');
         }
     };
 
@@ -438,10 +439,10 @@ function updateNavigationButtons(questionId, subject, system) {
             const nextQuestion = allQuestionsList[index + 1];
             loadQuestion(nextQuestion.questionId, nextQuestion.subject, nextQuestion.system);
         } else {
-            showToast('مبارك، هذا السؤال الاخير'); // "Congratulations, this is the last question"
+            showToast('مبارك، هذا السؤال الاخير');
         }
     };
-
+}
 
 // Choice Selection
 let selectedChoice = null;
