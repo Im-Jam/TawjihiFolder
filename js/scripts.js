@@ -172,18 +172,6 @@ function displaySystems() {
     const systemsContainer = document.getElementById('systems-container');
     let systemsHTML = '';
     for (const subject in systemsData) {
-        // Sort systems numerically if they are numbers, otherwise alphabetically
-        systemsData[subject].sort((a, b) => {
-            const numA = parseInt(a);
-            const numB = parseInt(b);
-            if (!isNaN(numA) && !isNaN(numB)) {
-                return numA - numB;
-            } else {
-                return a.localeCompare(b);
-            }
-        });
-
-
         systemsData[subject].forEach(system => {
             systemsHTML += `
                 <div class="system-item">
@@ -265,7 +253,11 @@ function loadQuestionsList(selectedSystems) {
             fetch(url)
             .then(response => response.json())
             .then(data => {
-                const questionFolders = data.filter(item => item.type === 'dir');
+                // Sort folders numerically instead of alphabetically
+                const questionFolders = data
+                    .filter(item => item.type === 'dir')
+                    .sort((a, b) => parseInt(a.name) - parseInt(b.name));
+                    
                 let questionFetches = questionFolders.map(folder => {
                     const questionUrl = `https://raw.githubusercontent.com/${githubUsername}/${githubRepo}/${githubBranch}/Data/${encodeURIComponent(subject)}/${encodeURIComponent(system)}/${encodeURIComponent(folder.name)}/question.json`;
                     return fetch(questionUrl)
@@ -278,6 +270,8 @@ function loadQuestionsList(selectedSystems) {
             })
             .then(() => {
                 if (!questionsData[subject]) questionsData[subject] = {};
+                // Sort questions numerically by question_id before storing
+                systemQuestions.sort((a, b) => parseInt(a.question_id) - parseInt(b.question_id));
                 questionsData[subject][system] = systemQuestions;
             })
         );
@@ -299,22 +293,29 @@ function displayQuestionsList() {
     const questionsList = document.getElementById('questions-list');
     questionsList.innerHTML = '';
     let questions = [];
+    
+    // Collect and sort all questions
     for (const subject in questionsData) {
         for (const system in questionsData[subject]) {
-            questionsData[subject][system].forEach(question => {
-                questions.push(question);
-                allQuestionsList.push({
-                    questionId: question.question_id,
-                    subject: question.subject_name,
-                    system: question.system_name
-                });
-            });
+            questions.push(...questionsData[subject][system]);
         }
     }
+    
+    // Sort questions numerically by question_id
+    questions.sort((a, b) => parseInt(a.question_id) - parseInt(b.question_id));
+    
+    // Update allQuestionsList with sorted questions
+    allQuestionsList = questions.map(question => ({
+        questionId: question.question_id,
+        subject: question.subject_name,
+        system: question.system_name
+    }));
+
     if (questions.length === 0) {
         questionsList.innerHTML = '<p>No questions available for the selected systems.</p>';
         return;
     }
+
     questions.forEach(question => {
         const col = document.createElement('div');
         col.className = 'col';
@@ -336,13 +337,14 @@ function displayQuestionsList() {
         `;
         questionsList.appendChild(col);
     });
-    // Update Breadcrumb
+    
+    // Update Breadcrumb and set up filter event listener
     const breadcrumb = document.getElementById('questions-breadcrumb');
     breadcrumb.innerHTML = `
         <li class="breadcrumb-item"><a href="#" onclick="showPage('home-page')">Home</a></li>
         <li class="breadcrumb-item active" aria-current="page">Questions List</li>
     `;
-    // Filter Event
+    
     document.getElementById('filter').addEventListener('change', function() {
         filterQuestions(questions);
     });
@@ -450,7 +452,7 @@ function updateNavigationButtons(questionId, subject, system) {
             const nextQuestion = allQuestionsList[index + 1];
             loadQuestion(nextQuestion.questionId, nextQuestion.subject, nextQuestion.system);
         } else {
-            showToast('مبارك، هذا السؤال الاخير'); // Toast on last question
+            showToast('مبارك، هذا السؤال الاخير');
         }
     };
 }
