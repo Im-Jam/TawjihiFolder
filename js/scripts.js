@@ -153,7 +153,13 @@ function fetchSystemsFromGitHub(selectedSubjects) {
         return fetch(url)
             .then(response => response.json())
             .then(data => {
-                systemsData[subject] = data.map(item => item.name);
+                // Sort the data numerically by folder name before storing
+                const sortedData = data.sort((a, b) => {
+                    const numA = parseInt(a.name.match(/\d+/)?.[0] || '0');
+                    const numB = parseInt(b.name.match(/\d+/)?.[0] || '0');
+                    return numA - numB;
+                });
+                systemsData[subject] = sortedData.map(item => item.name);
             });
     });
 
@@ -171,8 +177,20 @@ function fetchSystemsFromGitHub(selectedSubjects) {
 function displaySystems() {
     const systemsContainer = document.getElementById('systems-container');
     let systemsHTML = '';
-    for (const subject in systemsData) {
-        systemsData[subject].forEach(system => {
+    
+    // Convert systemsData into a sortable array of entries
+    const sortedSubjects = Object.entries(systemsData).sort((a, b) => a[0].localeCompare(b[0]));
+    
+    for (const [subject, systems] of sortedSubjects) {
+        // Sort systems numerically
+        const sortedSystems = [...systems].sort((a, b) => {
+            // Extract numbers from system names and compare them
+            const numA = parseInt(a.match(/\d+/)?.[0] || '0');
+            const numB = parseInt(b.match(/\d+/)?.[0] || '0');
+            return numA - numB;
+        });
+
+        sortedSystems.forEach(system => {
             systemsHTML += `
                 <div class="system-item">
                     <label class="system-checkbox-label">
@@ -183,7 +201,9 @@ function displaySystems() {
             `;
         });
     }
+    
     systemsContainer.innerHTML = systemsHTML;
+    
     // Add event listeners
     const systemCheckboxes = document.querySelectorAll('.system-checkbox');
     systemCheckboxes.forEach(checkbox => {
@@ -193,6 +213,7 @@ function displaySystems() {
             updateProceedButtonState();
         });
     });
+    
     // Restore previously selected systems
     if (selectedSystems.length > 0) {
         systemCheckboxes.forEach(checkbox => {
@@ -202,6 +223,7 @@ function displaySystems() {
         });
         updateProceedButtonState();
     }
+    
     // Select All Systems Button
     document.getElementById('select-all-systems').addEventListener('click', function() {
         const allSelected = Array.from(systemCheckboxes).every(checkbox => checkbox.checked);
@@ -212,6 +234,7 @@ function displaySystems() {
         localStorage.setItem('selectedSystems', JSON.stringify(selectedSystems));
         updateProceedButtonState();
     });
+    
     updateProceedButtonState();
 }
 
@@ -253,15 +276,10 @@ function loadQuestionsList(selectedSystems) {
             fetch(url)
             .then(response => response.json())
             .then(data => {
-                // Sort folders by extracting and comparing the numeric part
+                // Sort folders numerically instead of alphabetically
                 const questionFolders = data
                     .filter(item => item.type === 'dir')
-                    .sort((a, b) => {
-                        // Extract numbers from the folder names
-                        const numA = parseInt(a.name.match(/\d+/)[0]);
-                        const numB = parseInt(b.name.match(/\d+/)[0]);
-                        return numA - numB;
-                    });
+                    .sort((a, b) => parseInt(a.name) - parseInt(b.name));
                     
                 let questionFetches = questionFolders.map(folder => {
                     const questionUrl = `https://raw.githubusercontent.com/${githubUsername}/${githubRepo}/${githubBranch}/Data/${encodeURIComponent(subject)}/${encodeURIComponent(system)}/${encodeURIComponent(folder.name)}/question.json`;
@@ -275,15 +293,8 @@ function loadQuestionsList(selectedSystems) {
             })
             .then(() => {
                 if (!questionsData[subject]) questionsData[subject] = {};
-                // Sort questions by extracting and comparing the numeric part
-                systemQuestions.sort((a, b) => {
-                    const numA = parseInt(a.system_name.match(/\d+/)[0]);
-                    const numB = parseInt(b.system_name.match(/\d+/)[0]);
-                    if (numA === numB) {
-                        return parseInt(a.question_id) - parseInt(b.question_id);
-                    }
-                    return numA - numB;
-                });
+                // Sort questions numerically by question_id before storing
+                systemQuestions.sort((a, b) => parseInt(a.question_id) - parseInt(b.question_id));
                 questionsData[subject][system] = systemQuestions;
             })
         );
@@ -306,22 +317,15 @@ function displayQuestionsList() {
     questionsList.innerHTML = '';
     let questions = [];
     
-    // Collect all questions
+    // Collect and sort all questions
     for (const subject in questionsData) {
         for (const system in questionsData[subject]) {
             questions.push(...questionsData[subject][system]);
         }
     }
     
-    // Sort questions by module number first, then by question_id
-    questions.sort((a, b) => {
-        const moduleA = parseInt(a.system_name.match(/\d+/)[0]);
-        const moduleB = parseInt(b.system_name.match(/\d+/)[0]);
-        if (moduleA === moduleB) {
-            return parseInt(a.question_id) - parseInt(b.question_id);
-        }
-        return moduleA - moduleB;
-    });
+    // Sort questions numerically by question_id
+    questions.sort((a, b) => parseInt(a.question_id) - parseInt(b.question_id));
     
     // Update allQuestionsList with sorted questions
     allQuestionsList = questions.map(question => ({
@@ -686,7 +690,6 @@ function filterQuestions(allQuestions) {
     const filterType = document.getElementById('filter').value;
     const questionsList = document.getElementById('questions-list');
     questionsList.innerHTML = '';
-    
     let filteredQuestions = [];
     if (filterType === 'all') {
         filteredQuestions = allQuestions;
@@ -697,22 +700,10 @@ function filterQuestions(allQuestions) {
     } else if (filterType === 'unanswered') {
         filteredQuestions = allQuestions.filter(q => !userAnswers[q.question_id]);
     }
-
-    // Sort filtered questions by module number first, then by question_id
-    filteredQuestions.sort((a, b) => {
-        const moduleA = parseInt(a.system_name.match(/\d+/)[0]);
-        const moduleB = parseInt(b.system_name.match(/\d+/)[0]);
-        if (moduleA === moduleB) {
-            return parseInt(a.question_id) - parseInt(b.question_id);
-        }
-        return moduleA - moduleB;
-    });
-
     if (filteredQuestions.length === 0) {
         questionsList.innerHTML = '<p>لا يوجد اسئلة تحت هذه التصفية</p>';
         return;
     }
-
     filteredQuestions.forEach(question => {
         const col = document.createElement('div');
         col.className = 'col';
