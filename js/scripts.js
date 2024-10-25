@@ -253,10 +253,15 @@ function loadQuestionsList(selectedSystems) {
             fetch(url)
             .then(response => response.json())
             .then(data => {
-                // Sort folders numerically instead of alphabetically
+                // Sort folders by extracting and comparing the numeric part
                 const questionFolders = data
                     .filter(item => item.type === 'dir')
-                    .sort((a, b) => parseInt(a.name) - parseInt(b.name));
+                    .sort((a, b) => {
+                        // Extract numbers from the folder names
+                        const numA = parseInt(a.name.match(/\d+/)[0]);
+                        const numB = parseInt(b.name.match(/\d+/)[0]);
+                        return numA - numB;
+                    });
                     
                 let questionFetches = questionFolders.map(folder => {
                     const questionUrl = `https://raw.githubusercontent.com/${githubUsername}/${githubRepo}/${githubBranch}/Data/${encodeURIComponent(subject)}/${encodeURIComponent(system)}/${encodeURIComponent(folder.name)}/question.json`;
@@ -270,8 +275,15 @@ function loadQuestionsList(selectedSystems) {
             })
             .then(() => {
                 if (!questionsData[subject]) questionsData[subject] = {};
-                // Sort questions numerically by question_id before storing
-                systemQuestions.sort((a, b) => parseInt(a.question_id) - parseInt(b.question_id));
+                // Sort questions by extracting and comparing the numeric part
+                systemQuestions.sort((a, b) => {
+                    const numA = parseInt(a.system_name.match(/\d+/)[0]);
+                    const numB = parseInt(b.system_name.match(/\d+/)[0]);
+                    if (numA === numB) {
+                        return parseInt(a.question_id) - parseInt(b.question_id);
+                    }
+                    return numA - numB;
+                });
                 questionsData[subject][system] = systemQuestions;
             })
         );
@@ -294,15 +306,22 @@ function displayQuestionsList() {
     questionsList.innerHTML = '';
     let questions = [];
     
-    // Collect and sort all questions
+    // Collect all questions
     for (const subject in questionsData) {
         for (const system in questionsData[subject]) {
             questions.push(...questionsData[subject][system]);
         }
     }
     
-    // Sort questions numerically by question_id
-    questions.sort((a, b) => parseInt(a.question_id) - parseInt(b.question_id));
+    // Sort questions by module number first, then by question_id
+    questions.sort((a, b) => {
+        const moduleA = parseInt(a.system_name.match(/\d+/)[0]);
+        const moduleB = parseInt(b.system_name.match(/\d+/)[0]);
+        if (moduleA === moduleB) {
+            return parseInt(a.question_id) - parseInt(b.question_id);
+        }
+        return moduleA - moduleB;
+    });
     
     // Update allQuestionsList with sorted questions
     allQuestionsList = questions.map(question => ({
@@ -667,6 +686,7 @@ function filterQuestions(allQuestions) {
     const filterType = document.getElementById('filter').value;
     const questionsList = document.getElementById('questions-list');
     questionsList.innerHTML = '';
+    
     let filteredQuestions = [];
     if (filterType === 'all') {
         filteredQuestions = allQuestions;
@@ -677,10 +697,22 @@ function filterQuestions(allQuestions) {
     } else if (filterType === 'unanswered') {
         filteredQuestions = allQuestions.filter(q => !userAnswers[q.question_id]);
     }
+
+    // Sort filtered questions by module number first, then by question_id
+    filteredQuestions.sort((a, b) => {
+        const moduleA = parseInt(a.system_name.match(/\d+/)[0]);
+        const moduleB = parseInt(b.system_name.match(/\d+/)[0]);
+        if (moduleA === moduleB) {
+            return parseInt(a.question_id) - parseInt(b.question_id);
+        }
+        return moduleA - moduleB;
+    });
+
     if (filteredQuestions.length === 0) {
         questionsList.innerHTML = '<p>لا يوجد اسئلة تحت هذه التصفية</p>';
         return;
     }
+
     filteredQuestions.forEach(question => {
         const col = document.createElement('div');
         col.className = 'col';
