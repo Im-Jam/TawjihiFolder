@@ -1,5 +1,6 @@
 
 
+
 // GitHub Repository Information
 const githubUsername = 'Im-Jam';
 const githubRepo = 'Bank';
@@ -173,11 +174,6 @@ function displaySystems() {
     const systemsContainer = document.getElementById('systems-container');
     let systemsHTML = '';
     for (const subject in systemsData) {
-        // Sort systems numerically
-        systemsData[subject].sort((a, b) => {
-            return parseInt(a) - parseInt(b);
-        });
-
         systemsData[subject].forEach(system => {
             systemsHTML += `
                 <div class="system-item">
@@ -190,7 +186,7 @@ function displaySystems() {
         });
     }
     systemsContainer.innerHTML = systemsHTML;
-    // Add event listeners as before
+    // Add event listeners
     const systemCheckboxes = document.querySelectorAll('.system-checkbox');
     systemCheckboxes.forEach(checkbox => {
         checkbox.addEventListener('change', function() {
@@ -199,9 +195,15 @@ function displaySystems() {
             updateProceedButtonState();
         });
     });
-    updateProceedButtonState();
-}
-
+    // Restore previously selected systems
+    if (selectedSystems.length > 0) {
+        systemCheckboxes.forEach(checkbox => {
+            if (selectedSystems.some(sel => sel.subject === checkbox.dataset.subject && sel.system === checkbox.value)) {
+                checkbox.checked = true;
+            }
+        });
+        updateProceedButtonState();
+    }
     // Select All Systems Button
     document.getElementById('select-all-systems').addEventListener('click', function() {
         const allSelected = Array.from(systemCheckboxes).every(checkbox => checkbox.checked);
