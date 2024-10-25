@@ -1,6 +1,4 @@
 
-
-
 // GitHub Repository Information
 const githubUsername = 'Im-Jam';
 const githubRepo = 'Bank';
@@ -174,6 +172,18 @@ function displaySystems() {
     const systemsContainer = document.getElementById('systems-container');
     let systemsHTML = '';
     for (const subject in systemsData) {
+        // Sort systems numerically if they are numbers, otherwise alphabetically
+        systemsData[subject].sort((a, b) => {
+            const numA = parseInt(a);
+            const numB = parseInt(b);
+            if (!isNaN(numA) && !isNaN(numB)) {
+                return numA - numB;
+            } else {
+                return a.localeCompare(b);
+            }
+        });
+
+
         systemsData[subject].forEach(system => {
             systemsHTML += `
                 <div class="system-item">
@@ -440,7 +450,7 @@ function updateNavigationButtons(questionId, subject, system) {
             const nextQuestion = allQuestionsList[index + 1];
             loadQuestion(nextQuestion.questionId, nextQuestion.subject, nextQuestion.system);
         } else {
-            showToast('مبارك، هذا السؤال الاخير');
+            showToast('مبارك، هذا السؤال الاخير'); // Toast on last question
         }
     };
 }
