@@ -181,26 +181,5 @@
     
     <!-- External JavaScript -->
     <script src="js/scripts.js"></script>
-    <script>
-    // Function to sort units numerically within the container
-    function sortSystemsContainer() {
-        const systemsContainer = document.getElementById('systems-container');
-        const systemItems = Array.from(systemsContainer.getElementsByClassName('system-item'));
-
-        systemItems.sort((a, b) => {
-            const systemA = parseInt(a.querySelector('input').value);
-            const systemB = parseInt(b.querySelector('input').value);
-            return systemA - systemB;
-        });
-
-        // Re-append sorted items to the container
-        systemItems.forEach(item => systemsContainer.appendChild(item));
-    }
-
-    // Run the sort function once systems are loaded
-    document.addEventListener("DOMContentLoaded", () => {
-        setTimeout(sortSystemsContainer, 500); // Adjust timing if needed to ensure content loads
-    });
-    </script>
 </body>
 </html>
