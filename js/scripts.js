@@ -10,6 +10,7 @@ let systemsData = {};
 let questionsData = {};
 let bookmarks = JSON.parse(localStorage.getItem('bookmarks')) || [];
 let userAnswers = JSON.parse(localStorage.getItem('userAnswers')) || {};
+let allQuestionsList = []; // Declare allQuestionsList globally
 
 // User's Selection
 let selectedSubjects = JSON.parse(localStorage.getItem('selectedSubjects')) || [];
@@ -243,6 +244,7 @@ function loadQuestionsList(selectedSystems) {
     const questionsList = document.getElementById('questions-list');
     questionsList.innerHTML = '';
     let fetchPromises = [];
+    allQuestionsList = []; // Initialize the array for each load
 
     selectedSystems.forEach(({subject, system}) => {
         const url = `https://api.github.com/repos/${githubUsername}/${githubRepo}/contents/Data/${encodeURIComponent(subject)}/${encodeURIComponent(system)}?ref=${githubBranch}`;
@@ -289,6 +291,11 @@ function displayQuestionsList() {
         for (const system in questionsData[subject]) {
             questionsData[subject][system].forEach(question => {
                 questions.push(question);
+                allQuestionsList.push({
+                    questionId: question.question_id,
+                    subject: question.subject_name,
+                    system: question.system_name
+                });
             });
         }
     }
@@ -302,7 +309,7 @@ function displayQuestionsList() {
         col.innerHTML = `
             <div class="card h-100">
                 <div class="card-body d-flex flex-column">
-                    <h5 class="card-title">Question ${question.question_id}</h5>
+                    <h5 class="card-title">سؤال رقم ${question.question_id}</h5>
                     <p class="card-text">${stripHTML(question.question_text).substring(0, 100)}...</p>
                     <p class="card-text">
                         <strong>المادة</strong> ${question.subject_name}<br>
@@ -413,22 +420,23 @@ function loadQuestion(questionId, subject, system) {
 
 // Update Navigation Buttons
 function updateNavigationButtons(questionId, subject, system) {
-    const questions = questionsData[subject][system];
-    const index = questions.findIndex(q => q.question_id == questionId);
+    const index = allQuestionsList.findIndex(
+        q => q.questionId == questionId && q.subject === subject && q.system === system
+    );
 
     document.getElementById('previous-question').onclick = function() {
         if (index > 0) {
-            const prevQuestion = questions[index - 1];
-            loadQuestion(prevQuestion.question_id, subject, system);
+            const prevQuestion = allQuestionsList[index - 1];
+            loadQuestion(prevQuestion.questionId, prevQuestion.subject, prevQuestion.system);
         } else {
             showToast('مازلت في السؤال الاول');
         }
     };
 
     document.getElementById('next-question').onclick = function() {
-        if (index < questions.length - 1) {
-            const nextQuestion = questions[index + 1];
-            loadQuestion(nextQuestion.question_id, subject, system);
+        if (index < allQuestionsList.length - 1) {
+            const nextQuestion = allQuestionsList[index + 1];
+            loadQuestion(nextQuestion.questionId, nextQuestion.subject, nextQuestion.system);
         } else {
             showToast('مبارك، هذا السؤال الاخير');
         }
